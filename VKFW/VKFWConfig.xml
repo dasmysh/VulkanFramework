@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<!DOCTYPE boost_serialization>
+<boost_serialization signature="serialization::archive" version="12">
+<config class_id="0" tracking_level="0" version="7">
+	<fullscreen>0</fullscreen>
+	<backbufferBits>32</backbufferBits>
+	<windowLeft>0</windowLeft>
+	<windowTop>0</windowTop>
+	<windowWidth>@FW_WINDOW_WIDTH@</windowWidth>
+	<windowHeight>@FW_WINDOW_HEIGHT@</windowHeight>
+	<useSRGB>1</useSRGB>
+	<pauseOnKillFocus>0</pauseOnKillFocus>
+	<resourceBase>@FW_RESOURCE_BASE_PATH@</resourceBase>
+	<resourceDirs class_id="1" tracking_level="0" version="0">
+		<count>2</count>
+		<item_version>0</item_version>
+		<item>@FWLIB_RESOURCE_BASE_PATH@</item>
+		<item>@FW_EVAL_BASE_PATH@</item>
+	</resourceDirs>
+	<evalDirectory>@FW_EVAL_BASE_PATH@</evalDirectory>
+	<useCUDA>0</useCUDA>
+	<cudaDevice>-1</cudaDevice>
+	<sceneFile></sceneFile>
+	<fixCamera>0</fixCamera>
+</config>
+</boost_serialization>
+
