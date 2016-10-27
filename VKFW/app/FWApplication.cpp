@@ -70,6 +70,5 @@ namespace vkuapp {
     void FWApplication::Resize(const glm::uvec2& screenSize)
     {
         // fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
-        if (headScene_) headScene_->Resize(screenSize);
     }
 }
