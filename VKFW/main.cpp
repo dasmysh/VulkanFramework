@@ -9,8 +9,16 @@
 #include "main.h"
 #include "app_constants.h"
 #include "app/FWApplication.h"
-#include <minwindef.h>
 #include <g3log/logworker.hpp>
+
+#define WIN32_LEAN_AND_MEAN
+#define WIN32_EXTRA_LEAN
+#pragma warning(push, 3)
+#include <Windows.h>
+#pragma warning(pop)
+#undef min
+#undef max
+
 
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
