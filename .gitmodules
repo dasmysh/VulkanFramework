@@ -1,0 +1,3 @@
+[submodule "VKFWLib"]
+	path = VKFWLib
+	url = https://github.com/dasmysh/VulkanFramework_Lib
