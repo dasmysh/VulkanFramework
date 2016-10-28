@@ -11,6 +11,12 @@
 #include "app/FWApplication.h"
 #include <g3log/logworker.hpp>
 #include <g3log/loglevels.hpp>
+#include <core/g3log/filesink.h>
+#ifndef NDEBUG
+#include <core/g3log/rotfilesink.h>
+#else
+#include <core/g3log/filesink.h>
+#endif
 
 #define WIN32_LEAN_AND_MEAN
 #define WIN32_EXTRA_LEAN
@@ -27,7 +33,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     const std::string directory = "./";
     const std::string name = vkuapp::logFileName;
     auto worker = g3::LogWorker::createLogWorker();
-    auto handle = worker->addDefaultLogger(name, directory);
+#ifndef NDEBUG
+    auto handle = worker->addSink(std2::make_unique<vku::RotationFileSink>(name, directory, 5), &vku::RotationFileSink::fileWrite);
+#else
+    auto handle = worker->addSink(std2::make_unique<vku::FileSink>(name, directory, false), &vku::FileSink::fileWrite);
+#endif
+    // auto handle = worker->addDefaultLogger(name, directory);
 
     g3::only_change_at_initialization::setLogLevel(VK_GEN, true);
     g3::only_change_at_initialization::setLogLevel(VK_INFO, true);
