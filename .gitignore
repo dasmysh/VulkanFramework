@@ -183,3 +183,4 @@ $RECYCLE.BIN/
 
 # include all resource files
 !**/resources/*.obj
+*.spv
