@@ -38,7 +38,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #else
     auto handle = worker->addSink(std2::make_unique<vku::FileSink>(name, directory, false), &vku::FileSink::fileWrite);
 #endif
-    // auto handle = worker->addDefaultLogger(name, directory);
 
     g3::only_change_at_initialization::setLogLevel(VK_GEN, true);
     g3::only_change_at_initialization::setLogLevel(VK_INFO, true);

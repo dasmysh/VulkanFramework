@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.4)
 
 if(CMAKE_CONFIGURATION_TYPES)
-   set(CMAKE_CONFIGURATION_TYPES Release Debug DebugOpenGLCalls)
+   set(CMAKE_CONFIGURATION_TYPES Release Debug)
    set(CMAKE_CONFIGURATION_TYPES ${CMAKE_CONFIGURATION_TYPES} CACHE STRING "Append user-defined configuration to list of configurations to make it usable in Visual Studio" FORCE)
 endif()
 
@@ -23,7 +23,7 @@ set(CMAKE_EXE_LINKER_FLAGS_DEBUGOPENGLCALLS ${CMAKE_EXE_LINKER_FLAGS_DEBUG})
 set(CMAKE_SHARED_LINKER_FLAGS_DEBUGOPENGLCALLS ${CMAKE_SHARED_LINKER_FLAGS_DEBUG})
 
 add_subdirectory(VKFWLib)
-find_package(Boost 1.58.0 REQUIRED)
+find_package(Boost 1.60.0 REQUIRED)
 link_directories(${Boost_LIBRARY_DIRS})
 
 if(MSVC)
@@ -36,8 +36,23 @@ if(NOT EXISTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}Config.xml")
    configure_file("${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${PROJECT_NAME}Config.xml" "${PROJECT_NAME}Config.xml")
 endif()
 
+include("${CMAKE_SOURCE_DIR}/${FWLIB_LIBNAME}/cmake/CompileSpirvShader.cmake")
 
 file(GLOB_RECURSE RES_FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.*)
+file(GLOB_RECURSE SHADERS 
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.vert 
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.frag 
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.comp 
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.tesc 
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.tese
+    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/*.geom)
+set(COMPILED_SHADERS "")
+foreach(SHADER ${SHADERS})
+    compile_spirv_shader(${SHADER})
+    list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
+endforeach()
+source_group("CompiledShaders" FILES ${COMPILED_SHADERS})
+
 file(GLOB TOP_FILES
     ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/*.h
     ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/*.cpp
@@ -77,7 +92,7 @@ endforeach()
 file(GLOB PROJECT_CONFIGS CMakeLists.txt Readme.md)
 
 include_directories(${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/)
-add_executable(${PROJECT_NAME} WIN32 ${TMP_FILES} ${TOP_FILES} ${RES_FILES} ${PROJECT_CONFIGS} ${EXTERN_SOURCES_PROJECT})
+add_executable(${PROJECT_NAME} WIN32 ${COMPILED_SHADERS} ${TMP_FILES} ${TOP_FILES} ${RES_FILES} ${PROJECT_CONFIGS})
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${VULKAN_LIBRARY} VKFWLib)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PROJECT_NAME})
@@ -87,4 +102,4 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/${FWLIB_LIBNAME}/extern/g3log/$<CONFIGURATION>/g3logger.dll" ${CMAKE_BINARY_DIR})
 
 file(GLOB_RECURSE MYSHBIN_FILES ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/${FW_RESOURCE_DIR}/models/*.myshbin)
-add_custom_target("CleanBinary" COMMAND ${CMAKE_COMMAND} -E remove ${MYSHBIN_FILES})
+add_custom_target("CleanBinary" COMMAND ${CMAKE_COMMAND} -E remove ${MYSHBIN_FILES} ${COMPILED_SHADERS})
