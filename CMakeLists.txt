@@ -51,7 +51,10 @@ foreach(SHADER ${SHADERS})
     compile_spirv_shader(${SHADER})
     list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
 endforeach()
-source_group("CompiledShaders" FILES ${COMPILED_SHADERS})
+if(NOT "${COMPILED_SHADERS}" STREQUAL "")
+    LIST(REMOVE_ITEM RES_FILES ${COMPILED_SHADERS})
+    source_group("Resources\\CompiledShaders" FILES ${COMPILED_SHADERS})
+endif()
 
 file(GLOB TOP_FILES
     ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/*.h

@@ -11,7 +11,6 @@
 #include "app/FWApplication.h"
 #include <g3log/logworker.hpp>
 #include <g3log/loglevels.hpp>
-#include <core/g3log/filesink.h>
 #ifndef NDEBUG
 #include <core/g3log/rotfilesink.h>
 #else
@@ -39,11 +38,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     auto handle = worker->addSink(std2::make_unique<vku::FileSink>(name, directory, false), &vku::FileSink::fileWrite);
 #endif
 
+    g3::only_change_at_initialization::setLogLevel(DEBUG, false);
+    g3::only_change_at_initialization::setLogLevel(WARNING, false);
     g3::only_change_at_initialization::setLogLevel(VK_GEN, true);
     g3::only_change_at_initialization::setLogLevel(VK_INFO, true);
     g3::only_change_at_initialization::setLogLevel(VK_ERROR, true);
 
 #ifndef NDEBUG
+    g3::only_change_at_initialization::setLogLevel(DEBUG, true);
+    g3::only_change_at_initialization::setLogLevel(WARNING, true);
     g3::only_change_at_initialization::setLogLevel(VK_DEBUG, true);
     g3::only_change_at_initialization::setLogLevel(VK_WARNING, true);
     g3::only_change_at_initialization::setLogLevel(VK_PERF_WARNING, true);
