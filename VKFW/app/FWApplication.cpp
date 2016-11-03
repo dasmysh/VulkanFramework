@@ -45,6 +45,7 @@ namespace vkuapp {
 
     void FWApplication::RenderScene(const vku::VKWindow* window)
     {
+        // TODO: update pipeline? [11/3/2016 Sebastian Maisch]
         if (IsGUIMode()) {
         }
     }
