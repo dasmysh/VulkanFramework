@@ -10,6 +10,10 @@
 
 #include "app/ApplicationBase.h"
 
+namespace vku {namespace gfx {
+    class GraphicsPipeline;
+}}
+
 namespace vkuapp {
 
 
@@ -24,6 +28,10 @@ namespace vkuapp {
         void Resize(const glm::uvec2& screenSize) override;
 
     private:
+        /** Holds the pipeline layout for demo rendering. */
+        vk::PipelineLayout vkPipelineLayout_;
+        /** Holds the graphics pipeline for demo rendering. */
+        std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;

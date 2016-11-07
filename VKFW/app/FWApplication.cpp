@@ -8,6 +8,9 @@
 
 #include "FWApplication.h"
 #include "app_constants.h"
+#include "gfx/vk/GraphicsPipeline.h"
+#include "app/VKWindow.h"
+#include "gfx/vk/LogicalDevice.h"
 
 namespace vkuapp {
 
@@ -17,10 +20,20 @@ namespace vkuapp {
     FWApplication::FWApplication() :
         ApplicationBase{applicationName, applicationVersion, configFileName}
     {
+        demoPipeline_ = GetWindow(0)->GetDevice().CreateGraphicsPipeline({ {"simple.vert", "simple.frag"} }, GetWindow(0)->GetFramebuffers()[0], 1);
+
+        vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
+        vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
+
+        demoPipeline_->CreatePipeline(true, GetWindow(0)->GetRenderPass(), 0, vkPipelineLayout_);
     }
 
     FWApplication::~FWApplication()
     {
+        demoPipeline_.reset();
+
+        if (vkPipelineLayout_) GetWindow(0)->GetDevice().GetDevice().destroyPipelineLayout(vkPipelineLayout_);
+        vkPipelineLayout_ = vk::PipelineLayout();
     }
 
     void FWApplication::FrameMove(float time, float elapsed)
