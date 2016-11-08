@@ -8,9 +8,11 @@
 
 #include "FWApplication.h"
 #include "app_constants.h"
-#include "gfx/vk/GraphicsPipeline.h"
-#include "app/VKWindow.h"
-#include "gfx/vk/LogicalDevice.h"
+#include <gfx/vk/GraphicsPipeline.h>
+#include <app/VKWindow.h>
+#include <gfx/vk/LogicalDevice.h>
+// ReSharper disable once CppUnusedIncludeDirective
+#include <gfx/vk/Framebuffer.h>
 
 namespace vkuapp {
 
@@ -20,16 +22,25 @@ namespace vkuapp {
     FWApplication::FWApplication() :
         ApplicationBase{applicationName, applicationVersion, configFileName}
     {
-        demoPipeline_ = GetWindow(0)->GetDevice().CreateGraphicsPipeline({ {"simple.vert", "simple.frag"} }, GetWindow(0)->GetFramebuffers()[0], 1);
+        demoPipeline_ = GetWindow(0)->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, GetWindow(0)->GetFramebuffers()[0], 1);
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
         vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
 
         demoPipeline_->CreatePipeline(true, GetWindow(0)->GetRenderPass(), 0, vkPipelineLayout_);
+
+        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer)
+        {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
+            cmdBuffer.draw(3, 1, 0, 0);
+        });
     }
 
     FWApplication::~FWApplication()
     {
+        // remove pipeline from command buffer.
+        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer) {});
+
         demoPipeline_.reset();
 
         if (vkPipelineLayout_) GetWindow(0)->GetDevice().GetDevice().destroyPipelineLayout(vkPipelineLayout_);
