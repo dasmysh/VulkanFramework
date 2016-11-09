@@ -22,18 +22,8 @@ namespace vkuapp {
     FWApplication::FWApplication() :
         ApplicationBase{applicationName, applicationVersion, configFileName}
     {
-        demoPipeline_ = GetWindow(0)->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, GetWindow(0)->GetFramebuffers()[0], 1);
-
-        vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
-        vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
-
-        demoPipeline_->CreatePipeline(true, GetWindow(0)->GetRenderPass(), 0, vkPipelineLayout_);
-
-        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer)
-        {
-            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
-            cmdBuffer.draw(3, 1, 0, 0);
-        });
+        auto fbSize = GetWindow(0)->GetFramebuffers()[0].GetSize();
+        Resize(fbSize, GetWindow(0));
     }
 
     FWApplication::~FWApplication()
@@ -92,8 +82,23 @@ namespace vkuapp {
         return handled;
     }
 
-    void FWApplication::Resize(const glm::uvec2& screenSize)
+    void FWApplication::Resize(const glm::uvec2& screenSize, const vku::VKWindow* window)
     {
-        // fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
+        demoPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, screenSize, 1);
+
+        if (!vkPipelineLayout_) {
+            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
+            vkPipelineLayout_ = window->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
+        }
+
+        demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, vkPipelineLayout_);
+
+        window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer)
+        {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
+            cmdBuffer.draw(3, 1, 0, 0);
+        });
+
+        // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
     }
 }

@@ -25,7 +25,7 @@ namespace vkuapp {
 
         bool HandleKeyboard(int key, int scancode, int action, int mods, vku::VKWindow* sender) override;
         bool HandleMouseApp(int button, int action, int mods, float mouseWheelDelta, vku::VKWindow* sender) override;
-        void Resize(const glm::uvec2& screenSize) override;
+        void Resize(const glm::uvec2& screenSize, const vku::VKWindow* window) override;
 
     private:
         /** Holds the pipeline layout for demo rendering. */
