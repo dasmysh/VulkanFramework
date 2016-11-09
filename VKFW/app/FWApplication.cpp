@@ -20,8 +20,14 @@ namespace vkuapp {
      * Constructor.
      */
     FWApplication::FWApplication() :
-        ApplicationBase{applicationName, applicationVersion, configFileName}
+        ApplicationBase{applicationName, applicationVersion, configFileName},
+        vertices_{ { { 0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+                   { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
+                   { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } }
     {
+        vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
+        vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
+
         auto fbSize = GetWindow(0)->GetFramebuffers()[0].GetSize();
         Resize(fbSize, GetWindow(0));
     }
@@ -84,13 +90,12 @@ namespace vkuapp {
 
     void FWApplication::Resize(const glm::uvec2& screenSize, const vku::VKWindow* window)
     {
+        // TODO: handle other windows... [11/9/2016 Sebastian Maisch]
+        // TODO: maybe use lambdas to register for resize events...
+        if (window != GetWindow(0)) return;
+
         demoPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, screenSize, 1);
-
-        if (!vkPipelineLayout_) {
-            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
-            vkPipelineLayout_ = window->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
-        }
-
+        demoPipeline_->ResetVertexInput<SimpleVertex>();
         demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, vkPipelineLayout_);
 
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer)

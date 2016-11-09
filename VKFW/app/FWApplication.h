@@ -9,13 +9,13 @@
 #pragma once
 
 #include "app/ApplicationBase.h"
+#include "gfx/VertexFormats.h"
 
 namespace vku {namespace gfx {
     class GraphicsPipeline;
 }}
 
 namespace vkuapp {
-
 
     class FWApplication final : public vku::ApplicationBase
     {
@@ -32,6 +32,9 @@ namespace vkuapp {
         vk::PipelineLayout vkPipelineLayout_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
+        /** Holds vertex information. */
+        std::vector<SimpleVertex> vertices_;
+
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
