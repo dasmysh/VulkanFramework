@@ -13,6 +13,7 @@
 #include <gfx/vk/LogicalDevice.h>
 // ReSharper disable once CppUnusedIncludeDirective
 #include <gfx/vk/Framebuffer.h>
+#include "gfx/vk/Buffer.h"
 
 namespace vkuapp {
 
@@ -25,6 +26,9 @@ namespace vkuapp {
                    { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
                    { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } }
     {
+        vtxBuffer_ = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eVertexBuffer);
+        vtxBuffer_->InitializeData(vertices_);
+
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
         vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
 
@@ -101,7 +105,9 @@ namespace vkuapp {
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer)
         {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
-            cmdBuffer.draw(3, 1, 0, 0);
+            vk::DeviceSize offset = 0;
+            cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
+            cmdBuffer.draw(static_cast<uint32_t>(vertices_.size()), 1, 0, 0);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));

@@ -13,5 +13,5 @@ namespace vkuapp {
     vk::VertexInputBindingDescription SimpleVertex::bindingDescription_{ 0, sizeof(SimpleVertex), vk::VertexInputRate::eVertex };
     std::array<vk::VertexInputAttributeDescription, 2> SimpleVertex::attributeDescriptions_{ {
         { 0, 0, vk::Format::eR32G32Sfloat, offsetof(SimpleVertex, position_) },
-        { 0, 1, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, color_) } } };
+        { 1, 0, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, color_) } } };
 }
