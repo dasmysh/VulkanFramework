@@ -35,8 +35,12 @@ namespace vkuapp {
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
+        /** Holds index information. */
+        std::vector<uint32_t> indices_;
         /** Holds the vertex buffer. */
         std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
+        /** Holds the index buffer. */
+        std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
 
 
         /** Holds the screen text to render fps. */

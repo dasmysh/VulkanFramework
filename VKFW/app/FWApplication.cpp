@@ -23,9 +23,11 @@ namespace vkuapp {
      */
     FWApplication::FWApplication() :
         ApplicationBase{applicationName, applicationVersion, configFileName},
-        vertices_{ { { 0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-                   { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
-                   { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } }
+        vertices_{ { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
+                   { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
+                   { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
+                   { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } },
+        indices_{ 0, 1, 2, 2, 3, 0 }
     {
         {
             auto stagingBuffer = vku::gfx::HostBuffer{ &GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc };
@@ -37,6 +39,18 @@ namespace vkuapp {
             vtxBuffer_->InitializeBuffer(stagingBuffer.GetSize());
 
             stagingBuffer.CopyBufferSync(*vtxBuffer_, std::make_pair(device.GetQueueInfo(1).familyIndex_, 0));
+        }
+
+        {
+            auto stagingBuffer = vku::gfx::HostBuffer{ &GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc };
+            stagingBuffer.InitializeData(indices_);
+
+            auto& device = GetWindow(0)->GetDevice();
+            idxBuffer_ = std::make_unique<vku::gfx::DeviceBuffer>(&device, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+                vk::MemoryPropertyFlags(), std::vector<uint32_t>{ { device.GetQueueInfo(0).familyIndex_, device.GetQueueInfo(1).familyIndex_ } });
+            idxBuffer_->InitializeBuffer(stagingBuffer.GetSize());
+
+            stagingBuffer.CopyBufferSync(*idxBuffer_, std::make_pair(device.GetQueueInfo(1).familyIndex_, 0));
         }
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
@@ -117,7 +131,8 @@ namespace vkuapp {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
             cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
-            cmdBuffer.draw(static_cast<uint32_t>(vertices_.size()), 1, 0, 0);
+            cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(static_cast<uint32_t>(indices_.size()), 1, 0, 0, 0);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
