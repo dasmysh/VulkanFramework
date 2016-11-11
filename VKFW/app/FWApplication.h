@@ -12,7 +12,7 @@
 #include "gfx/VertexFormats.h"
 
 namespace vku {namespace gfx {
-    class Buffer;
+    class DeviceBuffer;
     class GraphicsPipeline;
 }}
 
@@ -36,7 +36,7 @@ namespace vkuapp {
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
         /** Holds the vertex buffer. */
-        std::unique_ptr<vku::gfx::Buffer> vtxBuffer_;
+        std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
 
 
         /** Holds the screen text to render fps. */

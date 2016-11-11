@@ -13,7 +13,8 @@
 #include <gfx/vk/LogicalDevice.h>
 // ReSharper disable once CppUnusedIncludeDirective
 #include <gfx/vk/Framebuffer.h>
-#include "gfx/vk/Buffer.h"
+#include "gfx/vk/HostBuffer.h"
+#include "gfx/vk/DeviceBuffer.h"
 
 namespace vkuapp {
 
@@ -27,43 +28,15 @@ namespace vkuapp {
                    { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } }
     {
         {
-            auto stagingBuffer = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc,
-                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
-            stagingBuffer->InitializeData(vertices_);
+            auto stagingBuffer = vku::gfx::HostBuffer{ &GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc };
+            stagingBuffer.InitializeData(vertices_);
 
-            vtxBuffer_ = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(),
-                vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-                vk::MemoryPropertyFlagBits::eDeviceLocal);
+            auto& device = GetWindow(0)->GetDevice();
+            vtxBuffer_ = std::make_unique<vku::gfx::DeviceBuffer>(&device, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+                vk::MemoryPropertyFlags(), std::vector<uint32_t>{ { device.GetQueueInfo(0).familyIndex_, device.GetQueueInfo(1).familyIndex_ } });
+            vtxBuffer_->InitializeBuffer(stagingBuffer.GetSize());
 
-
-
-            vk::CommandBufferAllocateInfo cmdBufferallocInfo{ GetWindow(0)->GetDevice().GetCommandPool(1) , vk::CommandBufferLevel::ePrimary, 1 };
-            auto transferCmdBuffers = GetWindow(0)->GetDevice().GetDevice().allocateCommandBuffers(cmdBufferallocInfo);
-
-            VkCommandBufferBeginInfo beginInfo = {};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-            vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-            VkBufferCopy copyRegion = {};
-            copyRegion.srcOffset = 0; // Optional
-            copyRegion.dstOffset = 0; // Optional
-            copyRegion.size = size;
-            vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-            vkEndCommandBuffer(commandBuffer);
-
-            VkSubmitInfo submitInfo = {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffer;
-
-            vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-            vkQueueWaitIdle(graphicsQueue);
-
-            vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
-            // vtxBuffer_->InitializeData(vertices_);
+            stagingBuffer.CopyBufferSync(*vtxBuffer_, std::make_pair(device.GetQueueInfo(1).familyIndex_, 0));
         }
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
