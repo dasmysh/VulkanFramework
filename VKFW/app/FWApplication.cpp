@@ -26,8 +26,45 @@ namespace vkuapp {
                    { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
                    { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } }
     {
-        vtxBuffer_ = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eVertexBuffer);
-        vtxBuffer_->InitializeData(vertices_);
+        {
+            auto stagingBuffer = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc,
+                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+            stagingBuffer->InitializeData(vertices_);
+
+            vtxBuffer_ = std::make_unique<vku::gfx::Buffer>(&GetWindow(0)->GetDevice(),
+                vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+                vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+
+
+            vk::CommandBufferAllocateInfo cmdBufferallocInfo{ GetWindow(0)->GetDevice().GetCommandPool(1) , vk::CommandBufferLevel::ePrimary, 1 };
+            auto transferCmdBuffers = GetWindow(0)->GetDevice().GetDevice().allocateCommandBuffers(cmdBufferallocInfo);
+
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+            VkBufferCopy copyRegion = {};
+            copyRegion.srcOffset = 0; // Optional
+            copyRegion.dstOffset = 0; // Optional
+            copyRegion.size = size;
+            vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+            vkEndCommandBuffer(commandBuffer);
+
+            VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffer;
+
+            vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+            vkQueueWaitIdle(graphicsQueue);
+
+            vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+            // vtxBuffer_->InitializeData(vertices_);
+        }
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
         vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);

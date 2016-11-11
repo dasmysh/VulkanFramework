@@ -18,10 +18,21 @@
 			<useSRGB>0</useSRGB>
 			<swapOptions>1</swapOptions>
 			<queues class_id="3" tracking_level="0" version="0">
-				<count>1</count>
+				<count>2</count>
 				<item_version>1</item_version>
 				<item class_id="4" tracking_level="0" version="1">
 					<graphicsCaps>1</graphicsCaps>
+					<computeCaps>0</computeCaps>
+					<transferCaps>1</transferCaps>
+					<sparseBindingCaps>0</sparseBindingCaps>
+					<priorities>
+						<count>1</count>
+						<item_version>0</item_version>
+						<item>1.000000000e+00</item>
+					</priorities>
+				</item>
+				<item class_id="4" tracking_level="0" version="1">
+					<graphicsCaps>0</graphicsCaps>
 					<computeCaps>0</computeCaps>
 					<transferCaps>1</transferCaps>
 					<sparseBindingCaps>0</sparseBindingCaps>
