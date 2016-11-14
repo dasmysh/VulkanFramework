@@ -15,6 +15,8 @@
 #include <gfx/vk/Framebuffer.h>
 #include "gfx/vk/HostBuffer.h"
 #include "gfx/vk/DeviceBuffer.h"
+#include "gfx/vk/QueuedDeviceTransfer.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace vkuapp {
 
@@ -29,32 +31,19 @@ namespace vkuapp {
                    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } },
         indices_{ 0, 1, 2, 2, 3, 0 }
     {
-        {
-            auto stagingBuffer = vku::gfx::HostBuffer{ &GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc };
-            stagingBuffer.InitializeData(vertices_);
-
-            auto& device = GetWindow(0)->GetDevice();
-            vtxBuffer_ = std::make_unique<vku::gfx::DeviceBuffer>(&device, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-                vk::MemoryPropertyFlags(), std::vector<uint32_t>{ { device.GetQueueInfo(0).familyIndex_, device.GetQueueInfo(1).familyIndex_ } });
-            vtxBuffer_->InitializeBuffer(stagingBuffer.GetSize());
-
-            stagingBuffer.CopyBufferSync(*vtxBuffer_, std::make_pair(device.GetQueueInfo(1).familyIndex_, 0));
-        }
+        auto& device = GetWindow(0)->GetDevice();
 
         {
-            auto stagingBuffer = vku::gfx::HostBuffer{ &GetWindow(0)->GetDevice(), vk::BufferUsageFlagBits::eTransferSrc };
-            stagingBuffer.InitializeData(indices_);
-
-            auto& device = GetWindow(0)->GetDevice();
-            idxBuffer_ = std::make_unique<vku::gfx::DeviceBuffer>(&device, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-                vk::MemoryPropertyFlags(), std::vector<uint32_t>{ { device.GetQueueInfo(0).familyIndex_, device.GetQueueInfo(1).familyIndex_ } });
-            idxBuffer_->InitializeBuffer(stagingBuffer.GetSize());
-
-            stagingBuffer.CopyBufferSync(*idxBuffer_, std::make_pair(device.GetQueueInfo(1).familyIndex_, 0));
+            vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
+            vtxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlags(),
+                std::vector<uint32_t>{ {0, 1} }, vertices_);
+            idxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlags(),
+                std::vector<uint32_t>{ {0, 1} }, indices_);
+            transfer.FinishTransfer();
         }
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
-        vkPipelineLayout_ = GetWindow(0)->GetDevice().GetDevice().createPipelineLayout(pipelineLayoutInfo);
+        vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
 
         auto fbSize = GetWindow(0)->GetFramebuffers()[0].GetSize();
         Resize(fbSize, GetWindow(0));
