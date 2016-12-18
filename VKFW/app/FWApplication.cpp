@@ -13,10 +13,10 @@
 #include <gfx/vk/LogicalDevice.h>
 // ReSharper disable once CppUnusedIncludeDirective
 #include <gfx/vk/Framebuffer.h>
-#include "gfx/vk/HostBuffer.h"
 #include "gfx/vk/DeviceBuffer.h"
 #include "gfx/vk/QueuedDeviceTransfer.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include "gfx/vk/BufferGroup.h"
 
 namespace vkuapp {
 
@@ -29,18 +29,27 @@ namespace vkuapp {
                    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
                    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
                    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } },
-        indices_{ 0, 1, 2, 2, 3, 0 }
+        indices_{ 0, 1, 2, 2, 3, 0 },
+        buffers_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() }
     {
         auto& device = GetWindow(0)->GetDevice();
 
         {
+            vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
+            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<uint32_t>{ {0, 1} });
+            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<uint32_t>{ {0, 1} });
+            buffers_.FinalizeGroup(&transfer);
+            transfer.FinishTransfer();
+        }
+
+        /*{
             vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
             vtxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlags(),
                 std::vector<uint32_t>{ {0, 1} }, vertices_);
             idxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlags(),
                 std::vector<uint32_t>{ {0, 1} }, indices_);
             transfer.FinishTransfer();
-        }
+        }*/
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 0, nullptr, 0, nullptr };
         vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
@@ -119,8 +128,12 @@ namespace vkuapp {
         {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
-            cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
-            cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);
+
+            //cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
+            //cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);
+
+            cmdBuffer.bindVertexBuffers(0, 1, buffers_.GetBuffer(0)->GetBuffer(), &offset);
+            cmdBuffer.bindIndexBuffer(*buffers_.GetBuffer(1)->GetBuffer(), 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(static_cast<uint32_t>(indices_.size()), 1, 0, 0, 0);
         });
 

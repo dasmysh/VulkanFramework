@@ -10,6 +10,7 @@
 
 #include "app/ApplicationBase.h"
 #include "gfx/VertexFormats.h"
+#include "gfx/vk/BufferGroup.h"
 
 namespace vku {namespace gfx {
     class DeviceBuffer;
@@ -37,10 +38,13 @@ namespace vkuapp {
         std::vector<SimpleVertex> vertices_;
         /** Holds index information. */
         std::vector<uint32_t> indices_;
+        /** Holds the vertex and index buffer. */
+        vku::gfx::BufferGroup buffers_;
         /** Holds the vertex buffer. */
-        std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
+        // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
         /** Holds the index buffer. */
-        std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
+        // std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
+
 
 
         /** Holds the screen text to render fps. */
