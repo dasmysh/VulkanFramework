@@ -102,14 +102,15 @@ namespace vkuapp {
         }
 
         {
-            vk::DescriptorPoolSize descSetPoolSize{ vk::DescriptorType::eUniformBuffer, 1 };
+            vk::DescriptorPoolSize descSetPoolSize{ vk::DescriptorType::eUniformBuffer, 2 };
             vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<uint32_t>(numUBOBuffers), 1, &descSetPoolSize };
             vkUBODescriptorPool_ = device.GetDevice().createDescriptorPool(descSetPoolInfo);
         }
 
         {
-            vk::DescriptorSetLayout descSetLayouts[] = { vkDescriptorSetLayout_, vkDescriptorSetLayout_, vkDescriptorSetLayout_ };
-            vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<uint32_t>(numUBOBuffers), descSetLayouts };
+            std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers);
+            for (auto i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i] = vkDescriptorSetLayout_;
+            vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
             vkUBODescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
         }
 
@@ -151,7 +152,7 @@ namespace vkuapp {
         auto& device = window->GetDevice();
 
         MVPMatrixUBO ubo;
-        ubo.model_ = glm::rotate(glm::mat4(), elapsed * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model_ = glm::rotate(glm::mat4(), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
