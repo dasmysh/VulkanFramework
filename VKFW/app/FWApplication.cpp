@@ -68,7 +68,7 @@ namespace vkuapp {
                 vkTransferCommandBuffers_[i].begin(beginInfo);
                 auto uboOffset = i * singleUBOSize;
                 vk::BufferCopy copyRegion{ uboOffset, uniformBufferOffset + uboOffset, sizeof(MVPMatrixUBO) };
-                vkTransferCommandBuffers_[i].copyBuffer(*uboTransferBuffer_->GetBuffer(), *completeBuffer_->GetBuffer(), copyRegion);
+                vkTransferCommandBuffers_[i].copyBuffer(uboTransferBuffer_->GetBuffer(), *completeBuffer_->GetBuffer(), copyRegion);
                 vkTransferCommandBuffers_[i].end();
             }
         }
