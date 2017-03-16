@@ -34,7 +34,7 @@ namespace vkuapp {
         buffers_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() }
     {
         auto& device = GetWindow(0)->GetDevice();
-        size_t uniformBufferOffset = 0;
+        std::size_t uniformBufferOffset = 0;
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
         auto singleUBOSize = device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO));
 
@@ -54,7 +54,7 @@ namespace vkuapp {
             vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
             completeBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eVertexBuffer
                 | vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlags(),
-                std::vector<uint32_t>{ {0, 1} }, completeBufferSize, vertices_);
+                std::vector<std::uint32_t>{ {0, 1} }, completeBufferSize, vertices_);
             transfer.TransferDataToBuffer(indices_, *completeBuffer_, indexBufferOffset);
             transfer.AddTransferToQueue(*uboTransferBuffer_, 0, *completeBuffer_, uniformBufferOffset, uboSize);
             transfer.FinishTransfer();
@@ -68,15 +68,15 @@ namespace vkuapp {
                 vkTransferCommandBuffers_[i].begin(beginInfo);
                 auto uboOffset = i * singleUBOSize;
                 vk::BufferCopy copyRegion{ uboOffset, uniformBufferOffset + uboOffset, sizeof(MVPMatrixUBO) };
-                vkTransferCommandBuffers_[i].copyBuffer(uboTransferBuffer_->GetBuffer(), *completeBuffer_->GetBuffer(), copyRegion);
+                vkTransferCommandBuffers_[i].copyBuffer(uboTransferBuffer_->GetBuffer(), completeBuffer_->GetBuffer(), copyRegion);
                 vkTransferCommandBuffers_[i].end();
             }
         }
 
         {
             vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
-            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<uint32_t>{ {0, 1} });
-            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<uint32_t>{ {0, 1} });
+            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<std::uint32_t>{ {0, 1} });
+            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
             buffers_.FinalizeGroup(&transfer);
             transfer.FinishTransfer();
         }
@@ -84,9 +84,9 @@ namespace vkuapp {
         /*{
             vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
             vtxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlags(),
-                std::vector<uint32_t>{ {0, 1} }, vertices_);
+                std::vector<std::uint32_t>{ {0, 1} }, vertices_);
             idxBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlags(),
-                std::vector<uint32_t>{ {0, 1} }, indices_);
+                std::vector<std::uint32_t>{ {0, 1} }, indices_);
             transfer.FinishTransfer();
         }*/
 
@@ -103,14 +103,14 @@ namespace vkuapp {
 
         {
             vk::DescriptorPoolSize descSetPoolSize{ vk::DescriptorType::eUniformBuffer, 2 };
-            vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<uint32_t>(numUBOBuffers), 1, &descSetPoolSize };
+            vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<std::uint32_t>(numUBOBuffers), 1, &descSetPoolSize };
             vkUBODescriptorPool_ = device.GetDevice().createDescriptorPool(descSetPoolInfo);
         }
 
         {
             std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers);
             for (auto i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i] = vkDescriptorSetLayout_;
-            vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
+            vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
             vkUBODescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
         }
 
@@ -119,7 +119,7 @@ namespace vkuapp {
             std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers);
             for (auto i = 0U; i < vkUBODescritorSets_.size(); ++i) {
                 auto bufferOffset = uniformBufferOffset + i * singleUBOSize;
-                descBufferInfos.emplace_back(*completeBuffer_->GetBuffer(), bufferOffset, singleUBOSize);
+                descBufferInfos.emplace_back(completeBuffer_->GetBuffer(), bufferOffset, singleUBOSize);
                 descSetWrites.emplace_back(vkUBODescritorSets_[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
             }
             device.GetDevice().updateDescriptorSets(descSetWrites, nullptr);
@@ -132,7 +132,7 @@ namespace vkuapp {
     FWApplication::~FWApplication()
     {
         // remove pipeline from command buffer.
-        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, uint32_t cmdBufferIndex) {});
+        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::uint32_t cmdBufferIndex) {});
 
         demoPipeline_.reset();
 
@@ -217,7 +217,7 @@ namespace vkuapp {
         demoPipeline_->ResetVertexInput<SimpleVertex>();
         demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, vkPipelineLayout_);
 
-        window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, uint32_t cmdBufferIndex)
+        window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::uint32_t cmdBufferIndex)
         {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
@@ -230,9 +230,9 @@ namespace vkuapp {
             // cmdBuffer.bindVertexBuffers(0, 1, buffers_.GetBuffer(0)->GetBuffer(), &offset);
             // cmdBuffer.bindIndexBuffer(*buffers_.GetBuffer(1)->GetBuffer(), 0, vk::IndexType::eUint32);
 
-            cmdBuffer.bindVertexBuffers(0, 1, completeBuffer_->GetBuffer(), &offset);
-            cmdBuffer.bindIndexBuffer(*completeBuffer_->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
-            cmdBuffer.drawIndexed(static_cast<uint32_t>(indices_.size()), 1, 0, 0, 0);
+            cmdBuffer.bindVertexBuffers(0, 1, completeBuffer_->GetBufferPtr(), &offset);
+            cmdBuffer.bindIndexBuffer(completeBuffer_->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));

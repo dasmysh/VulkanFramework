@@ -50,7 +50,7 @@ namespace vkuapp {
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
         /** Holds index information. */
-        std::vector<uint32_t> indices_;
+        std::vector<std::uint32_t> indices_;
         /** Holds a single buffer for all vertex, index and uniform data. */
         std::unique_ptr<vku::gfx::DeviceBuffer> completeBuffer_;
         /** Holds the vertex and index buffer. */

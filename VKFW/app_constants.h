@@ -12,10 +12,10 @@ namespace vkuapp {
     /** The application name. */
     static const char* applicationName = "VKFWApp";
     /** The application version. */
-    static const uint32_t applicationVersionMajor = 0;
-    static const uint32_t applicationVersionMinor = 1;
-    static const uint32_t applicationVersionPatch = 0;
-    static const uint32_t applicationVersion = (((applicationVersionMajor) << 22) | ((applicationVersionMinor) << 12) | (applicationVersionPatch));
+    static const std::uint32_t applicationVersionMajor = 0;
+    static const std::uint32_t applicationVersionMinor = 1;
+    static const std::uint32_t applicationVersionPatch = 0;
+    static const std::uint32_t applicationVersion = (((applicationVersionMajor) << 22) | ((applicationVersionMinor) << 12) | (applicationVersionPatch));
 
     /** The configuration file name. */
     static const char* configFileName = "VKFWConfig.xml";
