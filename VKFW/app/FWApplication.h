@@ -12,10 +12,10 @@
 #include "gfx/VertexFormats.h"
 #include "gfx/vk/buffers/BufferGroup.h"
 
-namespace vku {namespace gfx {
+namespace vku::gfx {
     class DeviceBuffer;
     class GraphicsPipeline;
-}}
+}
 
 namespace vkuapp {
 
