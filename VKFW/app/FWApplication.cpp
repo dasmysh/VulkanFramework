@@ -16,7 +16,6 @@
 #include "gfx/vk/buffers/DeviceBuffer.h"
 #include "gfx/vk/QueuedDeviceTransfer.h"
 #include <glm/gtc/matrix_transform.hpp>
-#include "gfx/vk/buffers/BufferGroup.h"
 #include "gfx/vk/buffers/HostBuffer.h"
 
 namespace vkuapp {
@@ -25,60 +24,62 @@ namespace vkuapp {
      * Constructor.
      */
     FWApplication::FWApplication() :
-        ApplicationBase{applicationName, applicationVersion, configFileName},
-        vertices_{ { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
-                   { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
-                   { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
-                   { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } },
+        ApplicationBase{ applicationName, applicationVersion, configFileName },
+        vertices_{ { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+                   { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+                   { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+                   { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } } },
         indices_{ 0, 3, 1, 1, 3, 2 },
-        buffers_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() }
+        memGroup_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() },
+        uniformDataOffset_{ 0 }
     {
         auto& device = GetWindow(0)->GetDevice();
-        std::size_t uniformBufferOffset = 0;
+        vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
+
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
         auto singleUBOSize = device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO));
 
+        MVPMatrixUBO initialUBO;
+        initialUBO.model_ = glm::mat4();
+        initialUBO.view_ = glm::mat4();
+        initialUBO.proj_ = glm::mat4();
+
         {
-            MVPMatrixUBO initialUBO;
-            initialUBO.model_ = glm::mat4();
-            initialUBO.view_ = glm::mat4();
-            initialUBO.proj_ = glm::mat4();
             auto uboSize = singleUBOSize * numUBOBuffers;
             auto indexBufferOffset = vku::byteSizeOf(vertices_);
-            uniformBufferOffset = device.CalculateUniformBufferAlignment(indexBufferOffset + vku::byteSizeOf(indices_));
-            auto completeBufferSize = uniformBufferOffset + uboSize;
-            uboTransferBuffer_ = std::make_unique<vku::gfx::HostBuffer>(&device, vk::BufferUsageFlagBits::eTransferSrc);
-            uboTransferBuffer_->InitializeBuffer(uboSize);
-            for (auto i = 0; i < numUBOBuffers; ++i) uboTransferBuffer_->UploadData(i * singleUBOSize, sizeof(MVPMatrixUBO), &initialUBO);
+            uniformDataOffset_ = device.CalculateUniformBufferAlignment(indexBufferOffset + vku::byteSizeOf(indices_));
+            auto completeBufferSize = uniformDataOffset_ + uboSize;
 
-            vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
-            completeBuffer_ = transfer.CreateDeviceBufferWithData(vk::BufferUsageFlagBits::eVertexBuffer
-                | vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlags(),
-                std::vector<std::uint32_t>{ {0, 1} }, completeBufferSize, vertices_);
-            transfer.TransferDataToBuffer(indices_, *completeBuffer_, indexBufferOffset);
-            transfer.AddTransferToQueue(*uboTransferBuffer_, 0, *completeBuffer_, uniformBufferOffset, uboSize);
-            transfer.FinishTransfer();
+            completeBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer
+                | vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eUniformBuffer,
+                completeBufferSize, std::vector<std::uint32_t>{ {0, 1} });
+            memGroup_.AddDataToBufferInGroup(completeBufferIdx_, 0, vertices_);
+            memGroup_.AddDataToBufferInGroup(completeBufferIdx_, indexBufferOffset, indices_);
+            for (auto i = 0; i < numUBOBuffers; ++i) memGroup_.AddDataToBufferInGroup(completeBufferIdx_,
+                uniformDataOffset_ + (i * singleUBOSize), sizeof(MVPMatrixUBO), &initialUBO);
 
-            vkTransferCommandBuffers_.resize(numUBOBuffers);
-            for (auto i = 0U; i < numUBOBuffers; ++i) {
-                vk::CommandBufferAllocateInfo cmdBufferallocInfo{ device.GetCommandPool(1) , vk::CommandBufferLevel::ePrimary, 1 };
-                vkTransferCommandBuffers_[i] = device.GetDevice().allocateCommandBuffers(cmdBufferallocInfo)[0];
-
-                vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
-                vkTransferCommandBuffers_[i].begin(beginInfo);
-                auto uboOffset = i * singleUBOSize;
-                vk::BufferCopy copyRegion{ uboOffset, uniformBufferOffset + uboOffset, sizeof(MVPMatrixUBO) };
-                vkTransferCommandBuffers_[i].copyBuffer(uboTransferBuffer_->GetBuffer(), completeBuffer_->GetBuffer(), copyRegion);
-                vkTransferCommandBuffers_[i].end();
-            }
+            //////////////////////////////////////////////////////////////////////////
+            // Multiple buffers section [3/18/2017 Sebastian Maisch]
+            vertexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<std::uint32_t>{ {0, 1} });
+            indexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
+            //////////////////////////////////////////////////////////////////////////
         }
 
+        memGroup_.FinalizeGroup();
+        memGroup_.TransferData(transfer);
+        transfer.FinishTransfer();
+
         {
-            vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(1, 0) };
-            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<std::uint32_t>{ {0, 1} });
-            buffers_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
-            buffers_.FinalizeGroup(&transfer);
-            transfer.FinishTransfer();
+            vk::CommandBufferAllocateInfo cmdBufferallocInfo{ device.GetCommandPool(1),
+                vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers) };
+            vkTransferCommandBuffers_ = device.GetDevice().allocateCommandBuffers(cmdBufferallocInfo);
+            for (auto i = 0U; i < numUBOBuffers; ++i) {
+                vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
+                vkTransferCommandBuffers_[i].begin(beginInfo);
+                auto uboOffset = uniformDataOffset_ + (i * singleUBOSize);
+                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, vkTransferCommandBuffers_[i], uboOffset, sizeof(MVPMatrixUBO));
+                vkTransferCommandBuffers_[i].end();
+            }
         }
 
         /*{
@@ -118,8 +119,8 @@ namespace vkuapp {
             std::vector<vk::DescriptorBufferInfo> descBufferInfos; descBufferInfos.reserve(numUBOBuffers);
             std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers);
             for (auto i = 0U; i < vkUBODescritorSets_.size(); ++i) {
-                auto bufferOffset = uniformBufferOffset + i * singleUBOSize;
-                descBufferInfos.emplace_back(completeBuffer_->GetBuffer(), bufferOffset, singleUBOSize);
+                auto bufferOffset = uniformDataOffset_ + (i * singleUBOSize);
+                descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), bufferOffset, singleUBOSize);
                 descSetWrites.emplace_back(vkUBODescritorSets_[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
             }
             device.GetDevice().updateDescriptorSets(descSetWrites, nullptr);
@@ -158,8 +159,8 @@ namespace vkuapp {
         ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
-        auto uboOffset = uboIndex * device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO));
-        uboTransferBuffer_->UploadData(uboOffset, sizeof(MVPMatrixUBO), &ubo);
+        auto uboOffset = uniformDataOffset_ + (uboIndex * device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO)));
+        memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset, sizeof(MVPMatrixUBO), &ubo);
         vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
         vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &vkTransferCommandBuffers_[uboIndex], 1, &vkTransferSemaphore };
         device.GetQueue(1, 0).submit(submitInfo, vk::Fence());
@@ -227,11 +228,11 @@ namespace vkuapp {
             // cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
             // cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);
 
-            // cmdBuffer.bindVertexBuffers(0, 1, buffers_.GetBuffer(0)->GetBuffer(), &offset);
-            // cmdBuffer.bindIndexBuffer(*buffers_.GetBuffer(1)->GetBuffer(), 0, vk::IndexType::eUint32);
+            // cmdBuffer.bindVertexBuffers(0, 1, buffers_.GetBuffer(vertexBufferIdx_)->GetBuffer(), &offset);
+            // cmdBuffer.bindIndexBuffer(*buffers_.GetBuffer(indexBufferIdx_)->GetBuffer(), 0, vk::IndexType::eUint32);
 
-            cmdBuffer.bindVertexBuffers(0, 1, completeBuffer_->GetBufferPtr(), &offset);
-            cmdBuffer.bindIndexBuffer(completeBuffer_->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
+            cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
+            cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
         });
 

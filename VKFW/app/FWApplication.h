@@ -10,7 +10,7 @@
 
 #include "app/ApplicationBase.h"
 #include "gfx/VertexFormats.h"
-#include "gfx/vk/buffers/BufferGroup.h"
+#include "gfx/vk/memory/MemoryGroup.h"
 
 namespace vku::gfx {
     class DeviceBuffer;
@@ -52,15 +52,23 @@ namespace vkuapp {
         /** Holds index information. */
         std::vector<std::uint32_t> indices_;
         /** Holds a single buffer for all vertex, index and uniform data. */
-        std::unique_ptr<vku::gfx::DeviceBuffer> completeBuffer_;
+        // std::unique_ptr<vku::gfx::DeviceBuffer> completeBuffer_;
         /** Holds the vertex and index buffer. */
-        vku::gfx::BufferGroup buffers_;
+        vku::gfx::MemoryGroup memGroup_;
+        /** Holds the memory group index of the index buffer. */
+        unsigned int indexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        /** Holds the memory group index of the vertex buffer. */
+        unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        /** Holds the memory group index of the complete buffer. */
+        unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the vertex buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
         /** Holds the index buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
         /** Holds the local uniform buffer for transfer. */
-        std::unique_ptr<vku::gfx::HostBuffer> uboTransferBuffer_;
+        // std::unique_ptr<vku::gfx::HostBuffer> uboTransferBuffer_;
+        /** Holds the internal offset in the complete buffer to the uniform data. */
+        std::size_t uniformDataOffset_;
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::CommandBuffer> vkTransferCommandBuffers_;
 

@@ -17,8 +17,9 @@ namespace vkuapp {
     {
         glm::vec2 position_;
         glm::vec3 color_;
+        glm::vec2 texCoord_;
 
         static vk::VertexInputBindingDescription bindingDescription_;
-        static std::array<vk::VertexInputAttributeDescription, 2> attributeDescriptions_;
+        static std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions_;
     };
 }
