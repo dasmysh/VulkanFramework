@@ -17,6 +17,7 @@
 #include "gfx/vk/QueuedDeviceTransfer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include "gfx/vk/buffers/HostBuffer.h"
+#include "gfx/Texture2D.h"
 
 namespace vkuapp {
 
@@ -29,7 +30,7 @@ namespace vkuapp {
                    { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
                    { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
                    { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } } },
-        indices_{ 0, 3, 1, 1, 3, 2 },
+        indices_{ 0, 1, 3, 3, 1, 2 },
         memGroup_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() },
         uniformDataOffset_{ 0 }
     {
@@ -57,6 +58,11 @@ namespace vkuapp {
             memGroup_.AddDataToBufferInGroup(completeBufferIdx_, indexBufferOffset, indices_);
             for (auto i = 0; i < numUBOBuffers; ++i) memGroup_.AddDataToBufferInGroup(completeBufferIdx_,
                 uniformDataOffset_ + (i * singleUBOSize), sizeof(MVPMatrixUBO), &initialUBO);
+
+            demoTexture_ = std::make_shared<vku::gfx::Texture2D>("demo.jpg", &device, true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
+            vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
+                vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
+            vkDemoSampler_ = device.GetDevice().createSampler(samplerCreateInfo);
 
             //////////////////////////////////////////////////////////////////////////
             // Multiple buffers section [3/18/2017 Sebastian Maisch]
@@ -93,35 +99,48 @@ namespace vkuapp {
 
         {
             vk::DescriptorSetLayoutBinding uboLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex };
-            vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
-            vkDescriptorSetLayout_ = device.GetDevice().createDescriptorSetLayout(layoutCreateInfo);
+            vk::DescriptorSetLayoutBinding samplerLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment };
+
+            vk::DescriptorSetLayoutCreateInfo samplerLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &samplerLayoutBinding };
+            vkDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayout(samplerLayoutCreateInfo);
+
+            vk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
+            vkDescriptorSetLayouts_[1] = device.GetDevice().createDescriptorSetLayout(uboLayoutCreateInfo);
         }
 
         {
-            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(), 1, &vkDescriptorSetLayout_, 0, nullptr };
+            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
+                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(), 0, nullptr };
             vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
         }
 
         {
-            vk::DescriptorPoolSize descSetPoolSize{ vk::DescriptorType::eUniformBuffer, 2 };
-            vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<std::uint32_t>(numUBOBuffers), 1, &descSetPoolSize };
+            std::array<vk::DescriptorPoolSize, 2> descSetPoolSizes;
+            descSetPoolSizes[0] = vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 1 };
+            descSetPoolSizes[1] = vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, static_cast<std::uint32_t>(numUBOBuffers) };
+            vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<std::uint32_t>(numUBOBuffers) + 1,
+                static_cast<std::uint32_t>(descSetPoolSizes.size()), descSetPoolSizes.data() };
             vkUBODescriptorPool_ = device.GetDevice().createDescriptorPool(descSetPoolInfo);
         }
 
         {
-            std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers);
-            for (auto i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i] = vkDescriptorSetLayout_;
+            std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers + 1);
+            descSetLayouts[0] = vkDescriptorSetLayouts_[0];
+            for (auto i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i + 1] = vkDescriptorSetLayouts_[1];
             vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
-            vkUBODescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
+            vkUBOSamplerDescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
         }
 
         {
+            std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers + 1);
+            vk::DescriptorImageInfo descImageInfo{ vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
+            descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[0], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
+
             std::vector<vk::DescriptorBufferInfo> descBufferInfos; descBufferInfos.reserve(numUBOBuffers);
-            std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers);
-            for (auto i = 0U; i < vkUBODescritorSets_.size(); ++i) {
+            for (auto i = 0U; i < numUBOBuffers; ++i) {
                 auto bufferOffset = uniformDataOffset_ + (i * singleUBOSize);
                 descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), bufferOffset, singleUBOSize);
-                descSetWrites.emplace_back(vkUBODescritorSets_[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
+                descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[i + 1], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
             }
             device.GetDevice().updateDescriptorSets(descSetWrites, nullptr);
         }
@@ -142,8 +161,13 @@ namespace vkuapp {
 
         if (vkPipelineLayout_) GetWindow(0)->GetDevice().GetDevice().destroyPipelineLayout(vkPipelineLayout_);
         vkPipelineLayout_ = vk::PipelineLayout();
-        if (vkDescriptorSetLayout_) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayout_);
-        vkDescriptorSetLayout_ = vk::DescriptorSetLayout();
+        if (vkDescriptorSetLayouts_[0]) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayouts_[0]);
+        vkDescriptorSetLayouts_[0] = vk::DescriptorSetLayout();
+        if (vkDescriptorSetLayouts_[1]) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayouts_[1]);
+        vkDescriptorSetLayouts_[1] = vk::DescriptorSetLayout();
+
+        if (vkDemoSampler_) GetWindow(0)->GetDevice().GetDevice().destroySampler(vkDemoSampler_);
+        vkDemoSampler_ = vk::Sampler();
     }
 
     void FWApplication::FrameMove(float time, float elapsed, const vku::VKWindow* window)
@@ -157,6 +181,7 @@ namespace vkuapp {
         ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+        ubo.proj_[1][1] *= -1.0f;
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         auto uboOffset = uniformDataOffset_ + (uboIndex * device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO)));
@@ -223,7 +248,8 @@ namespace vkuapp {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
 
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, vkPipelineLayout_, 0, vkUBODescritorSets_[cmdBufferIndex], nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, vkPipelineLayout_, 0, vkUBOSamplerDescritorSets_[0], nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, vkPipelineLayout_, 1, vkUBOSamplerDescritorSets_[cmdBufferIndex + 1], nullptr);
 
             // cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
             // cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);

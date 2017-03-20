@@ -15,6 +15,7 @@
 namespace vku::gfx {
     class DeviceBuffer;
     class GraphicsPipeline;
+    class Texture2D;
 }
 
 namespace vkuapp {
@@ -37,22 +38,20 @@ namespace vkuapp {
         void Resize(const glm::uvec2& screenSize, const vku::VKWindow* window) override;
 
     private:
-        /** Holds the descriptor set layout for the demo pipeline. */
-        vk::DescriptorSetLayout vkDescriptorSetLayout_;
+        /** Holds the descriptor set layouts for the demo pipeline. */
+        std::array<vk::DescriptorSetLayout, 2> vkDescriptorSetLayouts_;
         /** Holds the pipeline layout for demo rendering. */
         vk::PipelineLayout vkPipelineLayout_;
         /** Holds the descriptor pool for the UBO binding. */
         vk::DescriptorPool vkUBODescriptorPool_;
         /** Holds the descriptor set for the UBO binding. */
-        std::vector<vk::DescriptorSet> vkUBODescritorSets_;
+        std::vector<vk::DescriptorSet> vkUBOSamplerDescritorSets_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
         /** Holds index information. */
         std::vector<std::uint32_t> indices_;
-        /** Holds a single buffer for all vertex, index and uniform data. */
-        // std::unique_ptr<vku::gfx::DeviceBuffer> completeBuffer_;
         /** Holds the vertex and index buffer. */
         vku::gfx::MemoryGroup memGroup_;
         /** Holds the memory group index of the index buffer. */
@@ -65,13 +64,15 @@ namespace vkuapp {
         // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
         /** Holds the index buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
-        /** Holds the local uniform buffer for transfer. */
-        // std::unique_ptr<vku::gfx::HostBuffer> uboTransferBuffer_;
         /** Holds the internal offset in the complete buffer to the uniform data. */
         std::size_t uniformDataOffset_;
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::CommandBuffer> vkTransferCommandBuffers_;
 
+        /** Holds the texture used. */
+        std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
+        /** Holds the texture sampler. */
+        vk::Sampler vkDemoSampler_;
 
 
         /** Holds the screen text to render fps. */
