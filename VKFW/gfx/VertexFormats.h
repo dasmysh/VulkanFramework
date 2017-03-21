@@ -15,7 +15,7 @@ namespace vkuapp {
 
     struct SimpleVertex
     {
-        glm::vec2 position_;
+        glm::vec3 position_;
         glm::vec3 color_;
         glm::vec2 texCoord_;
 
