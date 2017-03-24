@@ -184,4 +184,5 @@ $RECYCLE.BIN/
 # include all resource files
 !**/resources/**/*.obj
 *.spv
+*.myshbin
 build15/
