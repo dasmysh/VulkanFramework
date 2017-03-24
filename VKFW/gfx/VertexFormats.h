@@ -11,6 +11,10 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
+namespace vku::gfx {
+    class MeshInfo;
+}
+
 namespace vkuapp {
 
     struct SimpleVertex
@@ -19,6 +23,10 @@ namespace vkuapp {
         glm::vec3 color_;
         glm::vec2 texCoord_;
 
+        SimpleVertex() {};
+        SimpleVertex(const glm::vec3& position, const glm::vec3& color, const glm::vec2& texCoord) :
+            position_{ position }, color_{ color }, texCoord_{ texCoord } {};
+        SimpleVertex(const vku::gfx::MeshInfo* mi, std::size_t index);
         static vk::VertexInputBindingDescription bindingDescription_;
         static std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions_;
     };

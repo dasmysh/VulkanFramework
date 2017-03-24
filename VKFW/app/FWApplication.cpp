@@ -18,6 +18,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "gfx/vk/buffers/HostBuffer.h"
 #include "gfx/Texture2D.h"
+#include "gfx/meshes/AssImpScene.h"
+#include "gfx/meshes/Mesh.h"
 
 namespace vkuapp {
 
@@ -50,6 +52,11 @@ namespace vkuapp {
         initialUBO.model_ = glm::mat4();
         initialUBO.view_ = glm::mat4();
         initialUBO.proj_ = glm::mat4();
+        initialUBO.model_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        initialUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
+        initialUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+        initialUBO.proj_[1][1] *= -1.0f;
 
         {
             auto uboSize = singleUBOSize * numUBOBuffers;
@@ -65,7 +72,7 @@ namespace vkuapp {
             for (auto i = 0; i < numUBOBuffers; ++i) memGroup_.AddDataToBufferInGroup(completeBufferIdx_,
                 uniformDataOffset_ + (i * singleUBOSize), sizeof(MVPMatrixUBO), &initialUBO);
 
-            demoTexture_ = std::make_shared<vku::gfx::Texture2D>("demo.jpg", &device, true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
+            demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
             vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
                 vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
             vkDemoSampler_ = device.GetDevice().createSampler(samplerCreateInfo);
@@ -76,6 +83,11 @@ namespace vkuapp {
             indexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
             //////////////////////////////////////////////////////////////////////////
         }
+
+        meshInfo_ = std::make_shared<vku::gfx::AssImpScene>("teapot/teapot.obj", &device);
+        mesh_ = std::make_unique<vku::gfx::Mesh>(vku::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex>(meshInfo_,
+            &device, vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{ {0, 1} }));
+        mesh_->UploadMeshData(transfer);
 
         memGroup_.FinalizeGroup();
         memGroup_.TransferData(transfer);
@@ -183,7 +195,7 @@ namespace vkuapp {
         auto& device = window->GetDevice();
 
         MVPMatrixUBO ubo;
-        ubo.model_ = glm::rotate(glm::mat4(), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
@@ -266,6 +278,9 @@ namespace vkuapp {
             cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
             cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
+
+            mesh_->BindBuffersToCommandBuffer(cmdBuffer);
+            mesh_->DrawMesh(cmdBuffer);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));

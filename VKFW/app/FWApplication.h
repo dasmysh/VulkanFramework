@@ -16,6 +16,8 @@ namespace vku::gfx {
     class DeviceBuffer;
     class GraphicsPipeline;
     class Texture2D;
+    class AssImpScene;
+    class Mesh;
 }
 
 namespace vkuapp {
@@ -74,6 +76,10 @@ namespace vkuapp {
         /** Holds the texture sampler. */
         vk::Sampler vkDemoSampler_;
 
+        /** Holds the AssImp demo model. */
+        std::shared_ptr<vku::gfx::AssImpScene> meshInfo_;
+        /** Holds the mesh to be rendered. */
+        std::unique_ptr<vku::gfx::Mesh> mesh_;
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
