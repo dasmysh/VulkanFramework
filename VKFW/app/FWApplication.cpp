@@ -257,6 +257,9 @@ namespace vkuapp {
         // TODO: maybe use lambdas to register for resize events...
         if (window != GetWindow(0)) return;
 
+
+        // TODO: like this the shaders will be recompiled on each resize. [3/26/2017 Sebastian Maisch]
+        // maybe set viewport as dynamic...
         demoPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, screenSize, 1);
         demoPipeline_->ResetVertexInput<SimpleVertex>();
         demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, vkPipelineLayout_);
