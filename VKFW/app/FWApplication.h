@@ -33,7 +33,7 @@ namespace vkuapp {
     {
     public:
         explicit FWApplication();
-        virtual ~FWApplication();
+        virtual ~FWApplication() override;
 
         bool HandleKeyboard(int key, int scancode, int action, int mods, vku::VKWindow* sender) override;
         bool HandleMouseApp(int button, int action, int mods, float mouseWheelDelta, vku::VKWindow* sender) override;

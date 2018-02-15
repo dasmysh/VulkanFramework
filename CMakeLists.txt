@@ -90,7 +90,7 @@ endforeach()
 
 # source_group("Extern" FILES ${EXTERN_SOURCES_PROJECT})
 
-file(GLOB PROJECT_CONFIGS CMakeLists.txt Readme.md)
+file(GLOB PROJECT_CONFIGS CMakeLists.txt Readme.md .clang-format)
 
 include_directories(${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/)
 add_executable(${PROJECT_NAME} WIN32 ${COMPILED_SHADERS} ${TMP_FILES} ${TOP_FILES} ${RES_FILES} ${PROJECT_CONFIGS})

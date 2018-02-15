@@ -89,7 +89,7 @@ namespace vkuapp {
             &device, vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{ {0, 1} }));
         mesh_->UploadMeshData(transfer);
 
-        memGroup_.FinalizeGroup();
+        memGroup_.FinalizeDeviceGroup();
         memGroup_.TransferData(transfer);
         transfer.FinishTransfer();
 
