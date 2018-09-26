@@ -283,7 +283,7 @@ namespace vkuapp {
             cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
 
             mesh_->BindBuffersToCommandBuffer(cmdBuffer);
-            mesh_->DrawMesh(cmdBuffer);
+            mesh_->DrawMesh(cmdBuffer, vkPipelineLayout_, meshWorldMatrix);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
