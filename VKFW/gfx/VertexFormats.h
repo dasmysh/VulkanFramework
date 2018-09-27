@@ -13,6 +13,7 @@
 
 namespace vku::gfx {
     class MeshInfo;
+    struct Material;
 }
 
 namespace vkuapp {
@@ -29,5 +30,10 @@ namespace vkuapp {
         SimpleVertex(const vku::gfx::MeshInfo* mi, std::size_t index);
         static vk::VertexInputBindingDescription bindingDescription_;
         static std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions_;
+    };
+
+    struct SimpleMaterial
+    {
+        SimpleMaterial(const vku::gfx::Material&) {}
     };
 }

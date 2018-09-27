@@ -24,7 +24,6 @@ namespace vkuapp {
 
     struct MVPMatrixUBO
     {
-        glm::mat4 model_;
         glm::mat4 view_;
         glm::mat4 proj_;
     };
@@ -57,9 +56,9 @@ namespace vkuapp {
         /** Holds the vertex and index buffer. */
         vku::gfx::MemoryGroup memGroup_;
         /** Holds the memory group index of the index buffer. */
-        unsigned int indexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        // unsigned int indexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the memory group index of the vertex buffer. */
-        unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        // unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the memory group index of the complete buffer. */
         unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the vertex buffer. */
@@ -72,9 +71,9 @@ namespace vkuapp {
         std::vector<vk::CommandBuffer> vkTransferCommandBuffers_;
 
         /** Holds the texture used. */
-        std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
+        // std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
         /** Holds the texture sampler. */
-        vk::Sampler vkDemoSampler_;
+        // vk::Sampler vkDemoSampler_;
 
         /** Holds the AssImp demo model. */
         std::shared_ptr<vku::gfx::AssImpScene> meshInfo_;
@@ -83,6 +82,7 @@ namespace vkuapp {
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
+        glm::mat4 worldMatrixMesh_;
 
     protected:
         void FrameMove(float time, float elapsed, const vku::VKWindow* window) override;

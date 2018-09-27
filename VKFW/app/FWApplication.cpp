@@ -49,10 +49,9 @@ namespace vkuapp {
         auto singleUBOSize = device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO));
 
         MVPMatrixUBO initialUBO;
-        initialUBO.model_ = glm::mat4();
         initialUBO.view_ = glm::mat4();
         initialUBO.proj_ = glm::mat4();
-        initialUBO.model_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        worldMatrixMesh_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         initialUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
@@ -72,20 +71,20 @@ namespace vkuapp {
             for (auto i = 0; i < numUBOBuffers; ++i) memGroup_.AddDataToBufferInGroup(completeBufferIdx_,
                 uniformDataOffset_ + (i * singleUBOSize), sizeof(MVPMatrixUBO), &initialUBO);
 
-            demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
-            vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
-                vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
-            vkDemoSampler_ = device.GetDevice().createSampler(samplerCreateInfo);
+            // demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
+            // vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
+            //     vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
+            // vkDemoSampler_ = device.GetDevice().createSampler(samplerCreateInfo);
 
             //////////////////////////////////////////////////////////////////////////
             // Multiple buffers section [3/18/2017 Sebastian Maisch]
-            vertexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<std::uint32_t>{ {0, 1} });
-            indexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
+            // vertexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer, vertices_, std::vector<std::uint32_t>{ {0, 1} });
+            // indexBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eIndexBuffer, indices_, std::vector<std::uint32_t>{ {0, 1} });
             //////////////////////////////////////////////////////////////////////////
         }
 
         meshInfo_ = std::make_shared<vku::gfx::AssImpScene>("teapot/teapot.obj", &device);
-        mesh_ = std::make_unique<vku::gfx::Mesh>(vku::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex>(meshInfo_,
+        mesh_ = std::make_unique<vku::gfx::Mesh>(vku::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex, SimpleMaterial>(meshInfo_,
             &device, vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{ {0, 1} }));
         mesh_->UploadMeshData(transfer);
 
@@ -115,20 +114,22 @@ namespace vkuapp {
             transfer.FinishTransfer();
         }*/
 
+        vkDescriptorSetLayouts_[0] = mesh_->GetMeshDescriptorLayout();
         {
             vk::DescriptorSetLayoutBinding uboLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex };
-            vk::DescriptorSetLayoutBinding samplerLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment };
+            // vk::DescriptorSetLayoutBinding samplerLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment };
 
-            vk::DescriptorSetLayoutCreateInfo samplerLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &samplerLayoutBinding };
-            vkDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayout(samplerLayoutCreateInfo);
+            // vk::DescriptorSetLayoutCreateInfo samplerLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &samplerLayoutBinding };
+            // vkDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayout(samplerLayoutCreateInfo);
 
             vk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
             vkDescriptorSetLayouts_[1] = device.GetDevice().createDescriptorSetLayout(uboLayoutCreateInfo);
         }
 
         {
+            // TODO: get push constants from mesh. [9/27/2018 Sebastian Maisch]
             vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
-                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(), 0, nullptr };
+                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(), numPushConstants, pushConstantRange };
             vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
         }
 
@@ -150,9 +151,9 @@ namespace vkuapp {
         }
 
         {
-            std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers + 1);
-            vk::DescriptorImageInfo descImageInfo{ vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
-            descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[0], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
+            std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers);
+            // vk::DescriptorImageInfo descImageInfo{ vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
+            // descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[0], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
 
             std::vector<vk::DescriptorBufferInfo> descBufferInfos; descBufferInfos.reserve(numUBOBuffers);
             for (auto i = 0U; i < numUBOBuffers; ++i) {
@@ -184,8 +185,8 @@ namespace vkuapp {
         if (vkDescriptorSetLayouts_[1]) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayouts_[1]);
         vkDescriptorSetLayouts_[1] = vk::DescriptorSetLayout();
 
-        if (vkDemoSampler_) GetWindow(0)->GetDevice().GetDevice().destroySampler(vkDemoSampler_);
-        vkDemoSampler_ = vk::Sampler();
+        // if (vkDemoSampler_) GetWindow(0)->GetDevice().GetDevice().destroySampler(vkDemoSampler_);
+        // vkDemoSampler_ = vk::Sampler();
     }
 
     void FWApplication::FrameMove(float time, float elapsed, const vku::VKWindow* window)
@@ -195,7 +196,7 @@ namespace vkuapp {
         auto& device = window->GetDevice();
 
         MVPMatrixUBO ubo;
-        ubo.model_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        worldMatrixMesh_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
@@ -283,7 +284,7 @@ namespace vkuapp {
             cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
 
             mesh_->BindBuffersToCommandBuffer(cmdBuffer);
-            mesh_->DrawMesh(cmdBuffer, vkPipelineLayout_, meshWorldMatrix);
+            mesh_->DrawMesh(cmdBuffer, vkPipelineLayout_, worldMatrixMesh_);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
