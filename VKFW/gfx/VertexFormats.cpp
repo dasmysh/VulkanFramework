@@ -19,7 +19,7 @@ namespace vkuapp {
 
     SimpleVertex::SimpleVertex(const vku::gfx::MeshInfo* mi, std::size_t index) :
         position_{ mi->GetVertices()[index] },
-        color_{ mi->GetColors()[0][index] },
+        color_{ mi->GetColors().empty() ? glm::vec3(0.0f) : mi->GetColors()[0][index] },
         texCoord_{ mi->GetTexCoords()[0][index] }
     {
     }

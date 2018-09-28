@@ -92,6 +92,10 @@ namespace vkuapp {
         memGroup_.TransferData(transfer);
         transfer.FinishTransfer();
 
+    TODO:
+        // add the image initialization stuff in the mesh after this block .....
+        // image views are already initialized then ... so this can be removed!!!! --> Done.
+
         {
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{ device.GetCommandPool(1),
                 vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers) };
@@ -127,9 +131,13 @@ namespace vkuapp {
         }
 
         {
+            std::vector<vk::PushConstantRange> pushConstants;
+            pushConstants.emplace_back(vk::ShaderStageFlagBits::eVertex, 0, static_cast<std::uint32_t>(sizeof(glm::mat4)));
+            pushConstants.emplace_back(vk::ShaderStageFlagBits::eVertex, static_cast<std::uint32_t>(sizeof(glm::mat4)), static_cast<std::uint32_t>(sizeof(glm::mat4)));
             // TODO: get push constants from mesh. [9/27/2018 Sebastian Maisch]
             vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
-                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(), numPushConstants, pushConstantRange };
+                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(),
+                static_cast<std::uint32_t>(pushConstants.size()), pushConstants.data() };
             vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
         }
 
