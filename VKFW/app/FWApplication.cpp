@@ -92,7 +92,9 @@ namespace vkuapp {
         memGroup_.TransferData(transfer);
         transfer.FinishTransfer();
 
-    TODO:
+        mesh_->CreateDescriptorSets();
+
+        // TODO:
         // add the image initialization stuff in the mesh after this block .....
         // image views are already initialized then ... so this can be removed!!!! --> Done.
 
@@ -153,7 +155,7 @@ namespace vkuapp {
         {
             std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers + 1);
             descSetLayouts[0] = vkDescriptorSetLayouts_[0];
-            for (auto i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i + 1] = vkDescriptorSetLayouts_[1];
+            for (std::size_t i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i + 1] = vkDescriptorSetLayouts_[1];
             vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
             vkUBOSamplerDescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
         }
