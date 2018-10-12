@@ -41,12 +41,13 @@ namespace vkuapp {
     private:
         /** Holds the descriptor set layouts for the demo pipeline. */
         std::array<vk::DescriptorSetLayout, 2> vkDescriptorSetLayouts_;
+        std::array<vk::UniqueDescriptorSetLayout, 1> vkUDescriptorSetLayouts_;
         /** Holds the pipeline layout for demo rendering. */
-        vk::PipelineLayout vkPipelineLayout_;
+        vk::UniquePipelineLayout vkPipelineLayout_;
         /** Holds the descriptor pool for the UBO binding. */
-        vk::DescriptorPool vkUBODescriptorPool_;
+        vk::UniqueDescriptorPool vkUBODescriptorPool_;
         /** Holds the descriptor set for the UBO binding. */
-        std::vector<vk::DescriptorSet> vkUBOSamplerDescritorSets_;
+        std::vector<vk::UniqueDescriptorSet> vkUBOSamplerDescritorSets_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds vertex information. */
@@ -68,7 +69,7 @@ namespace vkuapp {
         /** Holds the internal offset in the complete buffer to the uniform data. */
         std::size_t uniformDataOffset_;
         /** Holds the command buffers for transferring the uniform buffers. */
-        std::vector<vk::CommandBuffer> vkTransferCommandBuffers_;
+        std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
 
         /** Holds the texture used. */
         // std::shared_ptr<vku::gfx::Texture2D> demoTexture_;

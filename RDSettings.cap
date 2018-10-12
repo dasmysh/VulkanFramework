@@ -5,12 +5,12 @@
         "commandLine": "",
         "environment": [
         ],
-        "executable": "${CMAKE_BINARY_DIR}/${CONFIG_TYPE}/${PROJECT_NAME}.exe",
+        "executable": "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/${CONFIG_TYPE}/${PROJECT_NAME}.exe",
         "inject": false,
         "options": {
             "allowFullscreen": true,
             "allowVSync": true,
-            "apiValidation": false,
+            "apiValidation": true,
             "captureAllCmdLists": false,
             "captureCallstacks": false,
             "captureCallstacksOnlyDraws": false,

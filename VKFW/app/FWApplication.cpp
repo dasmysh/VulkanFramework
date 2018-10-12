@@ -20,6 +20,7 @@
 #include "gfx/Texture2D.h"
 #include "gfx/meshes/AssImpScene.h"
 #include "gfx/meshes/Mesh.h"
+#include <glm/gtc/type_ptr.hpp>
 
 namespace vkuapp {
 
@@ -51,7 +52,7 @@ namespace vkuapp {
         MVPMatrixUBO initialUBO;
         initialUBO.view_ = glm::mat4();
         initialUBO.proj_ = glm::mat4();
-        worldMatrixMesh_ = glm::rotate(glm::scale(glm::mat4(), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        worldMatrixMesh_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         initialUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
@@ -101,13 +102,13 @@ namespace vkuapp {
         {
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{ device.GetCommandPool(1),
                 vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers) };
-            vkTransferCommandBuffers_ = device.GetDevice().allocateCommandBuffers(cmdBufferallocInfo);
+            vkTransferCommandBuffers_ = device.GetDevice().allocateCommandBuffersUnique(cmdBufferallocInfo);
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
-                vkTransferCommandBuffers_[i].begin(beginInfo);
+                vkTransferCommandBuffers_[i]->begin(beginInfo);
                 auto uboOffset = uniformDataOffset_ + (i * singleUBOSize);
-                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, vkTransferCommandBuffers_[i], uboOffset, sizeof(MVPMatrixUBO));
-                vkTransferCommandBuffers_[i].end();
+                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, *vkTransferCommandBuffers_[i], uboOffset, sizeof(MVPMatrixUBO));
+                vkTransferCommandBuffers_[i]->end();
             }
         }
 
@@ -129,7 +130,8 @@ namespace vkuapp {
             // vkDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayout(samplerLayoutCreateInfo);
 
             vk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
-            vkDescriptorSetLayouts_[1] = device.GetDevice().createDescriptorSetLayout(uboLayoutCreateInfo);
+            vkUDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayoutUnique(uboLayoutCreateInfo);
+            vkDescriptorSetLayouts_[1] = *vkUDescriptorSetLayouts_[0];
         }
 
         {
@@ -140,7 +142,7 @@ namespace vkuapp {
             vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
                 static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data(),
                 static_cast<std::uint32_t>(pushConstants.size()), pushConstants.data() };
-            vkPipelineLayout_ = device.GetDevice().createPipelineLayout(pipelineLayoutInfo);
+            vkPipelineLayout_ = device.GetDevice().createPipelineLayoutUnique(pipelineLayoutInfo);
         }
 
         {
@@ -149,15 +151,15 @@ namespace vkuapp {
             descSetPoolSizes[1] = vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, static_cast<std::uint32_t>(numUBOBuffers) };
             vk::DescriptorPoolCreateInfo descSetPoolInfo{ vk::DescriptorPoolCreateFlags(), static_cast<std::uint32_t>(numUBOBuffers) + 1,
                 static_cast<std::uint32_t>(descSetPoolSizes.size()), descSetPoolSizes.data() };
-            vkUBODescriptorPool_ = device.GetDevice().createDescriptorPool(descSetPoolInfo);
+            vkUBODescriptorPool_ = device.GetDevice().createDescriptorPoolUnique(descSetPoolInfo);
         }
 
         {
             std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(numUBOBuffers + 1);
             descSetLayouts[0] = vkDescriptorSetLayouts_[0];
             for (std::size_t i = 0U; i < numUBOBuffers; ++i) descSetLayouts[i + 1] = vkDescriptorSetLayouts_[1];
-            vk::DescriptorSetAllocateInfo descSetAllocInfo{ vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
-            vkUBOSamplerDescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
+            vk::DescriptorSetAllocateInfo descSetAllocInfo{ *vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
+            vkUBOSamplerDescritorSets_ = device.GetDevice().allocateDescriptorSetsUnique(descSetAllocInfo);
         }
 
         {
@@ -169,7 +171,7 @@ namespace vkuapp {
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 auto bufferOffset = uniformDataOffset_ + (i * singleUBOSize);
                 descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), bufferOffset, singleUBOSize);
-                descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[i + 1], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
+                descSetWrites.emplace_back(*vkUBOSamplerDescritorSets_[i + 1], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &descBufferInfos[i], nullptr);
             }
             device.GetDevice().updateDescriptorSets(descSetWrites, nullptr);
         }
@@ -185,15 +187,11 @@ namespace vkuapp {
 
         demoPipeline_.reset();
 
-        if (vkUBODescriptorPool_) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorPool(vkUBODescriptorPool_);
-        vkUBODescriptorPool_ = vk::DescriptorPool();
+        vkUBOSamplerDescritorSets_.clear();
+        vkUBODescriptorPool_.reset();
 
-        if (vkPipelineLayout_) GetWindow(0)->GetDevice().GetDevice().destroyPipelineLayout(vkPipelineLayout_);
-        vkPipelineLayout_ = vk::PipelineLayout();
-        if (vkDescriptorSetLayouts_[0]) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayouts_[0]);
-        vkDescriptorSetLayouts_[0] = vk::DescriptorSetLayout();
-        if (vkDescriptorSetLayouts_[1]) GetWindow(0)->GetDevice().GetDevice().destroyDescriptorSetLayout(vkDescriptorSetLayouts_[1]);
-        vkDescriptorSetLayouts_[1] = vk::DescriptorSetLayout();
+        vkPipelineLayout_.reset();
+        vkUDescriptorSetLayouts_[0].reset();
 
         // if (vkDemoSampler_) GetWindow(0)->GetDevice().GetDevice().destroySampler(vkDemoSampler_);
         // vkDemoSampler_ = vk::Sampler();
@@ -216,7 +214,7 @@ namespace vkuapp {
         auto uboOffset = uniformDataOffset_ + (uboIndex * device.CalculateUniformBufferAlignment(sizeof(MVPMatrixUBO)));
         memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset, sizeof(MVPMatrixUBO), &ubo);
         vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
-        vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &vkTransferCommandBuffers_[uboIndex], 1, &vkTransferSemaphore };
+        vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &(*vkTransferCommandBuffers_[uboIndex]), 1, &vkTransferSemaphore };
         device.GetQueue(1, 0).submit(submitInfo, vk::Fence());
 
         /*static auto fps = 0.0f;
@@ -273,15 +271,15 @@ namespace vkuapp {
         // maybe set viewport as dynamic...
         demoPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple.vert", "simple.frag"}, screenSize, 1);
         demoPipeline_->ResetVertexInput<SimpleVertex>();
-        demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, vkPipelineLayout_);
+        demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, *vkPipelineLayout_);
 
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::uint32_t cmdBufferIndex)
         {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
 
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, vkPipelineLayout_, 0, vkUBOSamplerDescritorSets_[0], nullptr);
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, vkPipelineLayout_, 1, vkUBOSamplerDescritorSets_[cmdBufferIndex + 1], nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, *vkUBOSamplerDescritorSets_[0], nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 1, *vkUBOSamplerDescritorSets_[cmdBufferIndex + 1], nullptr);
 
             // cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
             // cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);
@@ -291,10 +289,11 @@ namespace vkuapp {
 
             cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
             cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
+            cmdBuffer.pushConstants(*vkPipelineLayout_, vk::ShaderStageFlagBits::eVertex, 0, vk::ArrayProxy<const float>(16, glm::value_ptr(worldMatrixMesh_)));
             cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
 
             mesh_->BindBuffersToCommandBuffer(cmdBuffer);
-            mesh_->DrawMesh(cmdBuffer, vkPipelineLayout_, worldMatrixMesh_);
+            mesh_->DrawMesh(cmdBuffer, *vkPipelineLayout_, worldMatrixMesh_);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
