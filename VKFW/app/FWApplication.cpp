@@ -72,10 +72,10 @@ namespace vkuapp {
             for (auto i = 0; i < numUBOBuffers; ++i) memGroup_.AddDataToBufferInGroup(completeBufferIdx_,
                 uniformDataOffset_ + (i * singleUBOSize), sizeof(MVPMatrixUBO), &initialUBO);
 
-            // demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
-            // vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
-            //     vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
-            // vkDemoSampler_ = device.GetDevice().createSampler(samplerCreateInfo);
+            demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
+            vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
+                vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
+            vkDemoSampler_ = device.GetDevice().createSamplerUnique(samplerCreateInfo);
 
             //////////////////////////////////////////////////////////////////////////
             // Multiple buffers section [3/18/2017 Sebastian Maisch]
@@ -164,8 +164,8 @@ namespace vkuapp {
 
         {
             std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(numUBOBuffers);
-            // vk::DescriptorImageInfo descImageInfo{ vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
-            // descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[0], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
+            vk::DescriptorImageInfo descImageInfo{ *vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
+            descSetWrites.emplace_back(*vkUBOSamplerDescritorSets_[0], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
 
             std::vector<vk::DescriptorBufferInfo> descBufferInfos; descBufferInfos.reserve(numUBOBuffers);
             for (auto i = 0U; i < numUBOBuffers; ++i) {

@@ -72,9 +72,9 @@ namespace vkuapp {
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
 
         /** Holds the texture used. */
-        // std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
+        std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
         /** Holds the texture sampler. */
-        // vk::Sampler vkDemoSampler_;
+        vk::UniqueSampler vkDemoSampler_;
 
         /** Holds the AssImp demo model. */
         std::shared_ptr<vku::gfx::AssImpScene> meshInfo_;
