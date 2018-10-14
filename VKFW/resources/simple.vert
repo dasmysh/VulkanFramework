@@ -12,18 +12,24 @@ out gl_PerVertex {
     vec4 gl_Position;
 };
 
-layout(set = 1, binding = 0) uniform UniformBufferObject {
+layout(set = 2, binding = 0) uniform CameraUniformBufferObject {
     mat4 view;
     mat4 proj;
-} ubo;
+} camera_ubo;
 
-layout(push_constant) uniform pushConstants {
+layout(set = 0, binding = 0) uniform WorldUniformBufferObject {
     mat4 model;
     mat4 normalMatrix;
-} pc;
+} world_ubo;
+
+// layout(push_constant) uniform pushConstants {
+//     mat4 model;
+//     mat4 normalMatrix;
+// } pc;
 
 void main() {
-    gl_Position = ubo.proj * ubo.view * pc.model * vec4(inPosition, 1.0);
+    gl_Position = camera_ubo.proj * camera_ubo.view * world_ubo.model * vec4(inPosition, 1.0);
+    // gl_Position = ubo.proj * ubo.view * vec4(0.01f * inPosition, 1.0);
     // gl_Position = vec4(inPosition, 0.0, 1.0);
     // gl_Position.y = -gl_Position.y;
     fragColor = inColor;

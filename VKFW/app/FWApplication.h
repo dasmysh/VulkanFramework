@@ -22,10 +22,16 @@ namespace vku::gfx {
 
 namespace vkuapp {
 
-    struct MVPMatrixUBO
+    struct VPMatrixUBO
     {
         glm::mat4 view_;
         glm::mat4 proj_;
+    };
+
+    struct WorldMatrixUBO
+    {
+        glm::mat4 model_;
+        glm::mat4 normalMatrix_;
     };
 
     class FWApplication final : public vku::ApplicationBase
@@ -40,14 +46,14 @@ namespace vkuapp {
 
     private:
         /** Holds the descriptor set layouts for the demo pipeline. */
-        std::array<vk::DescriptorSetLayout, 2> vkDescriptorSetLayouts_;
+        std::array<vk::DescriptorSetLayout, 3> vkDescriptorSetLayouts_;
         std::array<vk::UniqueDescriptorSetLayout, 1> vkUDescriptorSetLayouts_;
         /** Holds the pipeline layout for demo rendering. */
         vk::UniquePipelineLayout vkPipelineLayout_;
         /** Holds the descriptor pool for the UBO binding. */
         vk::UniqueDescriptorPool vkUBODescriptorPool_;
         /** Holds the descriptor set for the UBO binding. */
-        std::vector<vk::UniqueDescriptorSet> vkUBOSamplerDescritorSets_;
+        std::vector<vk::DescriptorSet> vkUBOSamplerDescritorSets_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds vertex information. */
@@ -83,7 +89,7 @@ namespace vkuapp {
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
-        glm::mat4 worldMatrixMesh_;
+        // ModelMatrixUBO worldMatrices_;
 
     protected:
         void FrameMove(float time, float elapsed, const vku::VKWindow* window) override;
