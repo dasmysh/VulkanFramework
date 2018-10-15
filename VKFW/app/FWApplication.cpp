@@ -17,6 +17,7 @@
 #include "gfx/vk/QueuedDeviceTransfer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include "gfx/vk/buffers/HostBuffer.h"
+#include "gfx/vk/UniformBufferObject.h"
 #include "gfx/Texture2D.h"
 #include "gfx/meshes/AssImpScene.h"
 #include "gfx/meshes/Mesh.h"
@@ -42,17 +43,18 @@ namespace vkuapp {
         indices_{ 0, 1, 2, 2, 3, 0,
                   4, 5, 6, 6, 7, 4 },
         memGroup_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() },
-        uniformDataOffset_{ 0 }
+        uniformDataOffset_{ 0 },
+        cameraUBO_{ vku::gfx::UniformBufferObject::Create<CameraMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) }
     {
         auto& device = GetWindow(0)->GetDevice();
         vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(0, 0) }; // as long as the last transfer of texture layouts is done on this queue, we have to use the graphics queue here.
 
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
-        auto singleCameraUBOSize = device.CalculateUniformBufferAlignment(sizeof(VPMatrixUBO));
-        auto singleWorldUBOSize = device.CalculateUniformBufferAlignment(sizeof(WorldMatrixUBO));
-        singleWorldCamUBOSize_ = singleCameraUBOSize + singleWorldUBOSize;
+        // singleCameraUBOSize_ = device.CalculateUniformBufferAlignment(sizeof(CameraMatrixUBO));
+        singleWorldUBOSize_ = device.CalculateUniformBufferAlignment(sizeof(WorldMatrixUBO));
+        // singleWorldCamUBOSize_ = singleCameraUBOSize + singleWorldUBOSize;
 
-        VPMatrixUBO initialCameraUBO;
+        CameraMatrixUBO initialCameraUBO;
         WorldMatrixUBO initialWorldUBO;
         initialWorldUBO.model_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model_)));
@@ -62,7 +64,7 @@ namespace vkuapp {
         initialCameraUBO.proj_[1][1] *= -1.0f;
 
         {
-            auto uboSize = singleWorldCamUBOSize_ * numUBOBuffers;
+            auto uboSize = cameraUBO_.GetCompleteSize() + singleWorldUBOSize_ * numUBOBuffers;
             auto indexBufferOffset = vku::byteSizeOf(vertices_);
             uniformDataOffset_ = device.CalculateUniformBufferAlignment(indexBufferOffset + vku::byteSizeOf(indices_));
             auto completeBufferSize = uniformDataOffset_ + uboSize;
@@ -70,12 +72,21 @@ namespace vkuapp {
             completeBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer
                 | vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eUniformBuffer,
                 completeBufferSize, std::vector<std::uint32_t>{ {0, 1} });
+
             memGroup_.AddDataToBufferInGroup(completeBufferIdx_, 0, vertices_);
             memGroup_.AddDataToBufferInGroup(completeBufferIdx_, indexBufferOffset, indices_);
+
+            cameraUBO_.AddUBOToBuffer(&memGroup_, completeBufferIdx_, uniformDataOffset_, &initialCameraUBO);
+
+            // auto cameraUBOOffset = uniformDataOffset_;
+            // for (auto i = 0; i < numUBOBuffers; ++i) {
+            //     memGroup_.AddDataToBufferInGroup(completeBufferIdx_, cameraUBOOffset + (i * singleCameraUBOSize_),
+            //         sizeof(CameraMatrixUBO), &initialCameraUBO);
+            // }
+
+            auto worldUBOOffset = uniformDataOffset_ + cameraUBO_.GetCompleteSize();
             for (auto i = 0; i < numUBOBuffers; ++i) {
-                memGroup_.AddDataToBufferInGroup(completeBufferIdx_, uniformDataOffset_ + (i * singleWorldCamUBOSize_),
-                    sizeof(VPMatrixUBO), &initialCameraUBO);
-                memGroup_.AddDataToBufferInGroup(completeBufferIdx_, uniformDataOffset_ + (i * singleWorldCamUBOSize_) + singleCameraUBOSize,
+                memGroup_.AddDataToBufferInGroup(completeBufferIdx_, worldUBOOffset + (i * singleWorldUBOSize_),
                     sizeof(WorldMatrixUBO), &initialWorldUBO);
             }
 
@@ -109,9 +120,12 @@ namespace vkuapp {
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
                 vkTransferCommandBuffers_[i]->begin(beginInfo);
-                auto uboOffset = uniformDataOffset_ + (i * singleWorldCamUBOSize_);
-                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, *vkTransferCommandBuffers_[i], uboOffset, sizeof(VPMatrixUBO));
-                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, *vkTransferCommandBuffers_[i], uboOffset + singleCameraUBOSize, sizeof(WorldMatrixUBO));
+                cameraUBO_.FillUploadCmdBuffer<CameraMatrixUBO>(*vkTransferCommandBuffers_[i], i);
+                // auto cameraUBOOffset = uniformDataOffset_ + (i * singleCameraUBOSize_);
+                // memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, *vkTransferCommandBuffers_[i], cameraUBOOffset, sizeof(CameraMatrixUBO));
+
+                auto worldUBOOffset = uniformDataOffset_ + cameraUBO_.GetCompleteSize() + (i * singleWorldUBOSize_);
+                memGroup_.FillUploadBufferCmdBuffer(completeBufferIdx_, *vkTransferCommandBuffers_[i], worldUBOOffset, sizeof(WorldMatrixUBO));
                 mesh_->TransferWorldMatrices(*vkTransferCommandBuffers_[i], i);
                 vkTransferCommandBuffers_[i]->end();
             }
@@ -126,21 +140,6 @@ namespace vkuapp {
             transfer.FinishTransfer();
         }*/
 
-        vkDescriptorSetLayouts_[0] = mesh_->GetWorldMatricesDescriptorLayout();
-        vkDescriptorSetLayouts_[1] = mesh_->GetMaterialDescriptorLayout();
-        {
-            vk::DescriptorSetLayoutBinding uboLayoutBinding{ 0, vk::DescriptorType::eUniformBufferDynamic, 1, vk::ShaderStageFlagBits::eVertex };
-
-            vk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
-            vkUDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayoutUnique(uboLayoutCreateInfo);
-            vkDescriptorSetLayouts_[2] = *vkUDescriptorSetLayouts_[0];
-        }
-
-        {
-            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
-                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data() };
-            vkPipelineLayout_ = device.GetDevice().createPipelineLayoutUnique(pipelineLayoutInfo);
-        }
 
         {
             std::array<vk::DescriptorPoolSize, 2> descSetPoolSizes;
@@ -151,15 +150,35 @@ namespace vkuapp {
             vkUBODescriptorPool_ = device.GetDevice().createDescriptorPoolUnique(descSetPoolInfo);
         }
 
+        cameraUBO_.CreateLayout(*vkUBODescriptorPool_, vk::ShaderStageFlagBits::eVertex, true, 0);
+
+        vkDescriptorSetLayouts_[0] = mesh_->GetWorldMatricesDescriptorLayout();
+        vkDescriptorSetLayouts_[1] = mesh_->GetMaterialDescriptorLayout();
+        vkDescriptorSetLayouts_[2] = cameraUBO_.GetDescriptorLayout();
+        // {
+        //     // Camera layout.
+        //     vk::DescriptorSetLayoutBinding uboLayoutBinding{ 0, vk::DescriptorType::eUniformBufferDynamic, 1, vk::ShaderStageFlagBits::eVertex };
+        // 
+        //     vk::DescriptorSetLayoutCreateInfo uboLayoutCreateInfo{ vk::DescriptorSetLayoutCreateFlags(), 1, &uboLayoutBinding };
+        //     vkUDescriptorSetLayouts_[0] = device.GetDevice().createDescriptorSetLayoutUnique(uboLayoutCreateInfo);
+        //     vkDescriptorSetLayouts_[2] = *vkUDescriptorSetLayouts_[0];
+        // }
+
         {
-            std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(3);
+            vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
+                static_cast<std::uint32_t>(vkDescriptorSetLayouts_.size()), vkDescriptorSetLayouts_.data() };
+            vkPipelineLayout_ = device.GetDevice().createPipelineLayoutUnique(pipelineLayoutInfo);
+        }
+
+        {
+            std::vector<vk::DescriptorSetLayout> descSetLayouts; descSetLayouts.resize(2);
             descSetLayouts[0] = vkDescriptorSetLayouts_[0];
             descSetLayouts[1] = vkDescriptorSetLayouts_[1];
-            descSetLayouts[2] = vkDescriptorSetLayouts_[2];
+            // descSetLayouts[2] = vkDescriptorSetLayouts_[2];
             vk::DescriptorSetAllocateInfo descSetAllocInfo{ *vkUBODescriptorPool_, static_cast<std::uint32_t>(descSetLayouts.size()), descSetLayouts.data() };
             // [0]: world ubo
             // [1]: material
-            // [2]: camera ubo
+            // -- // [2]: camera ubo
             vkUBOSamplerDescritorSets_ = device.GetDevice().allocateDescriptorSets(descSetAllocInfo);
         }
 
@@ -170,12 +189,13 @@ namespace vkuapp {
 
             std::vector<vk::DescriptorBufferInfo> descBufferInfos; descBufferInfos.reserve(2);
             // world ubo
-            descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), uniformDataOffset_ + singleCameraUBOSize, singleWorldUBOSize);
+            descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), uniformDataOffset_ + cameraUBO_.GetCompleteSize(), singleWorldUBOSize_);
             descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[0], 0, 0, 1, vk::DescriptorType::eUniformBufferDynamic, nullptr, &descBufferInfos.back());
 
             // camera ubo
-            descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), uniformDataOffset_, singleCameraUBOSize);
-            descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[2], 0, 0, 1, vk::DescriptorType::eUniformBufferDynamic, nullptr, &descBufferInfos.back());
+            cameraUBO_.FillDescriptorSetWrite(descSetWrites.emplace_back());
+            // descBufferInfos.emplace_back(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), uniformDataOffset_, singleCameraUBOSize_);
+            // descSetWrites.emplace_back(vkUBOSamplerDescritorSets_[2], 0, 0, 1, vk::DescriptorType::eUniformBufferDynamic, nullptr, &descBufferInfos.back());
 
             device.GetDevice().updateDescriptorSets(descSetWrites, nullptr);
         }
@@ -195,7 +215,7 @@ namespace vkuapp {
         vkUBODescriptorPool_.reset();
 
         vkPipelineLayout_.reset();
-        vkUDescriptorSetLayouts_[0].reset();
+        // vkUDescriptorSetLayouts_[0].reset();
     }
 
     void FWApplication::FrameMove(float time, float elapsed, const vku::VKWindow* window)
@@ -204,7 +224,7 @@ namespace vkuapp {
 
         auto& device = window->GetDevice();
 
-        VPMatrixUBO camera_ubo;
+        CameraMatrixUBO camera_ubo;
         WorldMatrixUBO world_ubo;
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
@@ -213,12 +233,16 @@ namespace vkuapp {
         camera_ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
         camera_ubo.proj_[1][1] *= -1.0f;
 
+        auto numBuffers = window->GetFramebuffers().size();
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
-        auto cameraUBOsingleSize = device.CalculateUniformBufferAlignment(sizeof(VPMatrixUBO));
+        auto cameraUBOsingleSize = device.CalculateUniformBufferAlignment(sizeof(CameraMatrixUBO));
         // auto combinedUBOSize = cameraUBOsingleSize + device.CalculateUniformBufferAlignment(sizeof(WorldMatrixUBO));
-        auto uboOffset = uniformDataOffset_ + (uboIndex * singleWorldCamUBOSize_);
-        memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset, sizeof(VPMatrixUBO), &camera_ubo);
-        memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset + cameraUBOsingleSize, sizeof(WorldMatrixUBO), &world_ubo);
+        cameraUBO_.UpdateInstanceData(uboIndex, &camera_ubo);
+        // auto camUBOOffset = uniformDataOffset_ + (uboIndex * singleCameraUBOSize_);
+        // memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + camUBOOffset, sizeof(CameraMatrixUBO), &camera_ubo);
+
+        auto wrldUBOOffset = uniformDataOffset_ + cameraUBO_.GetCompleteSize() + (uboIndex * singleWorldUBOSize_);
+        memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + wrldUBOOffset, sizeof(WorldMatrixUBO), &world_ubo);
 
 
         glm::mat4 mesh_world = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.02f)), -0.2f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -288,13 +312,15 @@ namespace vkuapp {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
             vk::DeviceSize offset = 0;
 
-            // World Matrices UBO
-            auto worldMatricesBufferOffset = static_cast<std::uint32_t>(cmdBufferIndex * singleWorldCamUBOSize_);
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, vkUBOSamplerDescritorSets_[0], worldMatricesBufferOffset);
             // Material set
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 1, vkUBOSamplerDescritorSets_[1], nullptr);
+
+            // World Matrices UBO
+            // auto worldMatricesBufferOffset = static_cast<std::uint32_t>(cmdBufferIndex * singleWorldCamUBOSize_);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, vkUBOSamplerDescritorSets_[0], static_cast<std::uint32_t>(cmdBufferIndex * singleWorldUBOSize_));
             // Camera Matrices UBO
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkUBOSamplerDescritorSets_[2], worldMatricesBufferOffset);
+            cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, cmdBufferIndex);
+            // cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkUBOSamplerDescritorSets_[2], static_cast<std::uint32_t>(cmdBufferIndex * singleCameraUBOSize_));
 
             // cmdBuffer.bindVertexBuffers(0, 1, vtxBuffer_->GetBuffer(), &offset);
             // cmdBuffer.bindIndexBuffer(*idxBuffer_->GetBuffer(), 0, vk::IndexType::eUint32);

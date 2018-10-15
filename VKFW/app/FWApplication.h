@@ -11,6 +11,7 @@
 #include "app/ApplicationBase.h"
 #include "gfx/VertexFormats.h"
 #include "gfx/vk/memory/MemoryGroup.h"
+#include "gfx/vk/UniformBufferObject.h"
 
 namespace vku::gfx {
     class DeviceBuffer;
@@ -18,11 +19,12 @@ namespace vku::gfx {
     class Texture2D;
     class AssImpScene;
     class Mesh;
+    class UniformBufferObject;
 }
 
 namespace vkuapp {
 
-    struct VPMatrixUBO
+    struct CameraMatrixUBO
     {
         glm::mat4 view_;
         glm::mat4 proj_;
@@ -47,7 +49,7 @@ namespace vkuapp {
     private:
         /** Holds the descriptor set layouts for the demo pipeline. */
         std::array<vk::DescriptorSetLayout, 3> vkDescriptorSetLayouts_;
-        std::array<vk::UniqueDescriptorSetLayout, 1> vkUDescriptorSetLayouts_;
+        // std::array<vk::UniqueDescriptorSetLayout, 1> vkUDescriptorSetLayouts_;
         /** Holds the pipeline layout for demo rendering. */
         vk::UniquePipelineLayout vkPipelineLayout_;
         /** Holds the descriptor pool for the UBO binding. */
@@ -68,14 +70,22 @@ namespace vkuapp {
         // unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the memory group index of the complete buffer. */
         unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+
+
+        // std::size_t singleCameraUBOSize_;
+        std::size_t singleWorldUBOSize_;
         /** Combined size of world and camera matrices buffers. */
-        std::size_t singleWorldCamUBOSize_;
+        // std::size_t singleWorldCamUBOSize_;
         /** Holds the vertex buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
         /** Holds the index buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
         /** Holds the internal offset in the complete buffer to the uniform data. */
         std::size_t uniformDataOffset_;
+
+        /** The uniform buffer object for the camera matrices. */
+        vku::gfx::UniformBufferObject cameraUBO_;
+
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
 
