@@ -68,6 +68,8 @@ namespace vkuapp {
         // unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the memory group index of the complete buffer. */
         unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        /** Combined size of world and camera matrices buffers. */
+        std::size_t singleWorldCamUBOSize_;
         /** Holds the vertex buffer. */
         // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
         /** Holds the index buffer. */
