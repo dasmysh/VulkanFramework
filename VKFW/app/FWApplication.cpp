@@ -212,7 +212,7 @@ namespace vkuapp {
 
         VPMatrixUBO camera_ubo;
         WorldMatrixUBO world_ubo;
-        world_ubo.model_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
         camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
@@ -226,7 +226,9 @@ namespace vkuapp {
         memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset, sizeof(VPMatrixUBO), &camera_ubo);
         memGroup_.GetHostMemory()->CopyToHostMemory(memGroup_.GetHostBufferOffset(completeBufferIdx_) + uboOffset + cameraUBOsingleSize, sizeof(WorldMatrixUBO), &world_ubo);
 
-        mesh_->UpdateWorldMatrices(uboIndex, world_ubo.model_);
+
+        glm::mat4 mesh_world = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.02f)), -0.2f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        mesh_->UpdateWorldMatrices(uboIndex, mesh_world);
         vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
         vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &(*vkTransferCommandBuffers_[uboIndex]), 1, &vkTransferSemaphore };
         device.GetQueue(1, 0).submit(submitInfo, vk::Fence());
