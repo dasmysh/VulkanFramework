@@ -48,14 +48,13 @@ namespace vkuapp {
 
     private:
         /** Holds the descriptor set layouts for the demo pipeline. */
-        std::array<vk::DescriptorSetLayout, 3> vkDescriptorSetLayouts_;
-        // std::array<vk::UniqueDescriptorSetLayout, 1> vkUDescriptorSetLayouts_;
+        vk::DescriptorSetLayout vkImageSampleDescriptorSetLayout_;
         /** Holds the pipeline layout for demo rendering. */
         vk::UniquePipelineLayout vkPipelineLayout_;
         /** Holds the descriptor pool for the UBO binding. */
         vk::UniqueDescriptorPool vkUBODescriptorPool_;
-        /** Holds the descriptor set for the UBO binding. */
-        std::vector<vk::DescriptorSet> vkUBOSamplerDescritorSets_;
+        /** Holds the descriptor set for the image/sampler binding. */
+        vk::DescriptorSet vkImageSamplerDescritorSet_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds vertex information. */
@@ -64,27 +63,13 @@ namespace vkuapp {
         std::vector<std::uint32_t> indices_;
         /** Holds the vertex and index buffer. */
         vku::gfx::MemoryGroup memGroup_;
-        /** Holds the memory group index of the index buffer. */
-        // unsigned int indexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
-        /** Holds the memory group index of the vertex buffer. */
-        // unsigned int vertexBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
         /** Holds the memory group index of the complete buffer. */
         unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
 
-
-        // std::size_t singleCameraUBOSize_;
-        std::size_t singleWorldUBOSize_;
-        /** Combined size of world and camera matrices buffers. */
-        // std::size_t singleWorldCamUBOSize_;
-        /** Holds the vertex buffer. */
-        // std::unique_ptr<vku::gfx::DeviceBuffer> vtxBuffer_;
-        /** Holds the index buffer. */
-        // std::unique_ptr<vku::gfx::DeviceBuffer> idxBuffer_;
-        /** Holds the internal offset in the complete buffer to the uniform data. */
-        std::size_t uniformDataOffset_;
-
         /** The uniform buffer object for the camera matrices. */
         vku::gfx::UniformBufferObject cameraUBO_;
+        /** The uniform buffer object for the world matrices. */
+        vku::gfx::UniformBufferObject worldUBO_;
 
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
@@ -101,7 +86,6 @@ namespace vkuapp {
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
-        // ModelMatrixUBO worldMatrices_;
 
     protected:
         void FrameMove(float time, float elapsed, const vku::VKWindow* window) override;
