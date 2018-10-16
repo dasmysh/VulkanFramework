@@ -127,13 +127,14 @@ namespace vkuapp {
 
         cameraUBO_.CreateLayout(*vkUBODescriptorPool_, vk::ShaderStageFlagBits::eVertex, true, 0);
         worldUBO_.UseLayout(*vkUBODescriptorPool_, mesh_->GetWorldMatricesDescriptorLayout(), true, 0);
-        vkImageSampleDescriptorSetLayout_ = mesh_->GetMaterialDescriptorLayout();
+        vkImageSampleDescriptorSetLayout_ = mesh_->GetMaterialTexturesDescriptorLayout();
 
         {
-            std::array<vk::DescriptorSetLayout, 3> pipelineDescSets;
+            std::array<vk::DescriptorSetLayout, 4> pipelineDescSets;
             pipelineDescSets[0] = worldUBO_.GetDescriptorLayout();
-            pipelineDescSets[1] = vkImageSampleDescriptorSetLayout_;
-            pipelineDescSets[2] = cameraUBO_.GetDescriptorLayout();
+            pipelineDescSets[1] = mesh_->GetMaterialBufferDescriptorLayout();
+            pipelineDescSets[2] = vkImageSampleDescriptorSetLayout_;
+            pipelineDescSets[3] = cameraUBO_.GetDescriptorLayout();
 
             vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ vk::PipelineLayoutCreateFlags(),
                 static_cast<std::uint32_t>(pipelineDescSets.size()), pipelineDescSets.data() };
@@ -148,7 +149,7 @@ namespace vkuapp {
         {
             std::vector<vk::WriteDescriptorSet> descSetWrites; descSetWrites.reserve(3);
             vk::DescriptorImageInfo descImageInfo{ *vkDemoSampler_, demoTexture_->GetTexture().GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal };
-            descSetWrites.emplace_back(vkImageSamplerDescritorSet_, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
+            descSetWrites.emplace_back(vkImageSamplerDescritorSet_, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &descImageInfo);
 
             worldUBO_.FillDescriptorSetWrite(descSetWrites.emplace_back());
             cameraUBO_.FillDescriptorSetWrite(descSetWrites.emplace_back());
@@ -257,10 +258,10 @@ namespace vkuapp {
             vk::DeviceSize offset = 0;
 
             // Material set
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 1, vkImageSamplerDescritorSet_, nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkImageSamplerDescritorSet_, nullptr);
 
             worldUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, cmdBufferIndex);
-            cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, cmdBufferIndex);
+            cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 3, cmdBufferIndex);
 
             cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
             cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);

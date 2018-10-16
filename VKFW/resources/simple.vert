@@ -12,7 +12,7 @@ out gl_PerVertex {
     vec4 gl_Position;
 };
 
-layout(set = 2, binding = 0) uniform CameraUniformBufferObject {
+layout(set = 3, binding = 0) uniform CameraUniformBufferObject {
     mat4 view;
     mat4 proj;
 } camera_ubo;
