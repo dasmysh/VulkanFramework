@@ -44,7 +44,7 @@ namespace vkuapp {
                   4, 5, 6, 6, 7, 4 },
         memGroup_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() },
         cameraUBO_{ vku::gfx::UniformBufferObject::Create<CameraMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) },
-        worldUBO_{ vku::gfx::UniformBufferObject::Create<WorldMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) }
+        worldUBO_{ vku::gfx::UniformBufferObject::Create<vku::gfx::WorldMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) }
     {
         auto& device = GetWindow(0)->GetDevice();
         vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(0, 0) }; // as long as the last transfer of texture layouts is done on this queue, we have to use the graphics queue here.
@@ -52,7 +52,7 @@ namespace vkuapp {
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
 
         CameraMatrixUBO initialCameraUBO;
-        WorldMatrixUBO initialWorldUBO;
+        vku::gfx::WorldMatrixUBO initialWorldUBO;
         initialWorldUBO.model_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model_)));
         initialCameraUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -108,7 +108,7 @@ namespace vkuapp {
                 vkTransferCommandBuffers_[i]->begin(beginInfo);
 
                 cameraUBO_.FillUploadCmdBuffer<CameraMatrixUBO>(*vkTransferCommandBuffers_[i], i);
-                worldUBO_.FillUploadCmdBuffer<WorldMatrixUBO>(*vkTransferCommandBuffers_[i], i);
+                worldUBO_.FillUploadCmdBuffer<vku::gfx::WorldMatrixUBO>(*vkTransferCommandBuffers_[i], i);
 
                 mesh_->TransferWorldMatrices(*vkTransferCommandBuffers_[i], i);
                 vkTransferCommandBuffers_[i]->end();
@@ -177,7 +177,7 @@ namespace vkuapp {
         auto& device = window->GetDevice();
 
         CameraMatrixUBO camera_ubo;
-        WorldMatrixUBO world_ubo;
+        vku::gfx::WorldMatrixUBO world_ubo;
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
         camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));

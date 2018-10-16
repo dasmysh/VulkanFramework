@@ -30,12 +30,6 @@ namespace vkuapp {
         glm::mat4 proj_;
     };
 
-    struct WorldMatrixUBO
-    {
-        glm::mat4 model_;
-        glm::mat4 normalMatrix_;
-    };
-
     class FWApplication final : public vku::ApplicationBase
     {
     public:
