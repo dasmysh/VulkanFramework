@@ -88,12 +88,16 @@ foreach(f ${RES_OBJ_FILES})
     set_source_files_properties(${f} PROPERTIES HEADER_FILE_ONLY TRUE)
 endforeach()
 
-# source_group("Extern" FILES ${EXTERN_SOURCES_PROJECT})
+
+file(GLOB EXTERN_SOURCES_PROJECT
+    VKFWLib/extern/imgui/imgui_demo.cpp)
+
+source_group("extern" FILES ${EXTERN_SOURCES_PROJECT})
 
 file(GLOB PROJECT_CONFIGS CMakeLists.txt Readme.md .clang-format)
 
 include_directories(${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/)
-add_executable(${PROJECT_NAME} WIN32 ${COMPILED_SHADERS} ${TMP_FILES} ${TOP_FILES} ${RES_FILES} ${PROJECT_CONFIGS})
+add_executable(${PROJECT_NAME} WIN32 ${COMPILED_SHADERS} ${TMP_FILES} ${TOP_FILES} ${RES_FILES} ${PROJECT_CONFIGS} ${EXTERN_SOURCES_PROJECT})
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${VULKAN_LIBRARY} VKFWLib)

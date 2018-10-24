@@ -23,6 +23,7 @@
 #include "gfx/meshes/Mesh.h"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "imgui.h"
 
 namespace vkuapp {
 
@@ -217,7 +218,9 @@ namespace vkuapp {
     void FWApplication::RenderScene(const vku::VKWindow* window)
     {
         // TODO: update pipeline? [11/3/2016 Sebastian Maisch]
+        static bool show_demo_window = true;
         if (IsGUIMode()) {
+            ImGui::ShowDemoWindow(&show_demo_window);
         }
     }
 
