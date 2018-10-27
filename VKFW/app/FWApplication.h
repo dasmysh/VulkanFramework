@@ -65,6 +65,8 @@ namespace vkuapp {
         /** The uniform buffer object for the world matrices. */
         vku::gfx::UniformBufferObject worldUBO_;
 
+        /** The command pool for the transfer cmd buffers. */
+        vk::UniqueCommandPool transferCmdPool_; // TODO: at some point we may need one per buffer? [10/19/2018 Sebastian Maisch]
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
 

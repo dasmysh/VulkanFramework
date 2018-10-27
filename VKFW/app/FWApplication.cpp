@@ -101,7 +101,8 @@ namespace vkuapp {
         mesh_->CreateDescriptorSets(numUBOBuffers);
 
         {
-            vk::CommandBufferAllocateInfo cmdBufferallocInfo{ device.GetCommandPool(1),
+            transferCmdPool_ = device.CreateCommandPoolForQueue(1);
+            vk::CommandBufferAllocateInfo cmdBufferallocInfo{ *transferCmdPool_,
                 vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers) };
             vkTransferCommandBuffers_ = device.GetDevice().allocateCommandBuffersUnique(cmdBufferallocInfo);
             for (auto i = 0U; i < numUBOBuffers; ++i) {
