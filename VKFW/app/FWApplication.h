@@ -20,6 +20,7 @@ namespace vku::gfx {
     class AssImpScene;
     class Mesh;
     class UniformBufferObject;
+    class UserControlledCamera;
 }
 
 namespace vkuapp {
@@ -69,6 +70,9 @@ namespace vkuapp {
         vk::UniqueCommandPool transferCmdPool_; // TODO: at some point we may need one per buffer? [10/19/2018 Sebastian Maisch]
         /** Holds the command buffers for transferring the uniform buffers. */
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
+
+        /** The camera model used. */
+        std::unique_ptr<vku::gfx::UserControlledCamera> camera_;
 
         /** Holds the texture used. */
         std::shared_ptr<vku::gfx::Texture2D> demoTexture_;

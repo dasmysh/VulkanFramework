@@ -21,6 +21,7 @@
 #include "gfx/Texture2D.h"
 #include "gfx/meshes/AssImpScene.h"
 #include "gfx/meshes/Mesh.h"
+#include "gfx/camera/ArcballCamera.h"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
@@ -52,14 +53,18 @@ namespace vkuapp {
 
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
 
+        auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
+        camera_ = std::make_unique<vku::gfx::ArcballCamera>(glm::vec3(2.0f, 2.0f, 2.0f), glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+
         CameraMatrixUBO initialCameraUBO;
         vku::gfx::WorldMatrixUBO initialWorldUBO;
         initialWorldUBO.model_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model_)));
-        initialCameraUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
-        initialCameraUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
-        initialCameraUBO.proj_[1][1] *= -1.0f;
+        initialCameraUBO.view_ = camera_->GetViewMatrix();
+        initialCameraUBO.proj_ = camera_->GetProjMatrix();
+        // initialCameraUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        // initialCameraUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+        // initialCameraUBO.proj_[1][1] *= -1.0f;
 
         {
             auto uboSize = cameraUBO_.GetCompleteSize() + worldUBO_.GetCompleteSize();
@@ -183,10 +188,13 @@ namespace vkuapp {
         vku::gfx::WorldMatrixUBO world_ubo;
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
-        camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
-        camera_ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
-        camera_ubo.proj_[1][1] *= -1.0f;
+        // camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        // auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
+        // camera_ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+        // camera_ubo.proj_[1][1] *= -1.0f;
+        camera_->UpdateCamera(elapsed, window);
+        camera_ubo.view_ = camera_->GetViewMatrix();
+        camera_ubo.proj_ = camera_->GetProjMatrix();
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         cameraUBO_.UpdateInstanceData(uboIndex, camera_ubo);
@@ -239,7 +247,7 @@ namespace vkuapp {
 
     bool FWApplication::HandleMouseApp(int button, int action, int mods, float mouseWheelDelta, vku::VKWindow* sender)
     {
-        auto handled = false;
+        auto handled = camera_->HandleMouse(button, action, mouseWheelDelta, sender);
         return handled;
     }
 
