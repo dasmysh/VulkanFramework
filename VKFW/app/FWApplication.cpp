@@ -22,6 +22,7 @@
 #include "gfx/meshes/AssImpScene.h"
 #include "gfx/meshes/Mesh.h"
 #include "gfx/camera/ArcballCamera.h"
+#include "gfx/renderer/RenderList.h"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
@@ -188,6 +189,7 @@ namespace vkuapp {
         vku::gfx::WorldMatrixUBO world_ubo;
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
+        planesWorldMatrix_ = world_ubo.model_;
         // camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         // auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
         // camera_ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
@@ -200,8 +202,8 @@ namespace vkuapp {
         cameraUBO_.UpdateInstanceData(uboIndex, camera_ubo);
         worldUBO_.UpdateInstanceData(uboIndex, world_ubo);
 
-        glm::mat4 mesh_world = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.02f)), -0.2f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        mesh_->UpdateWorldMatrices(uboIndex, mesh_world);
+        meshWorldMatrix_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.02f)), -0.2f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        mesh_->UpdateWorldMatrices(uboIndex, meshWorldMatrix_);
         vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
         vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &(*vkTransferCommandBuffers_[uboIndex]), 1, &vkTransferSemaphore };
         device.GetQueue(1, 0).submit(submitInfo, vk::Fence());
@@ -226,15 +228,12 @@ namespace vkuapp {
 
     void FWApplication::RenderScene(const vku::VKWindow* window)
     {
-        // TODO: update pipeline? [11/3/2016 Sebastian Maisch]
-        static bool show_demo_window = true;
-        if (IsGUIMode()) {
-            ImGui::ShowDemoWindow(&show_demo_window);
-        }
     }
 
-    void FWApplication::RenderGUI()
+    void FWApplication::RenderGUI(const vku::VKWindow* window)
     {
+        static bool show_demo_window = true;
+        ImGui::ShowDemoWindow(&show_demo_window);
     }
 
     bool FWApplication::HandleKeyboard(int key, int scancode, int action, int mods, vku::VKWindow* sender)
@@ -266,20 +265,39 @@ namespace vkuapp {
 
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
-            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
+            using BufferReference = vku::gfx::RenderElement::BufferReference;
+            using UBOBinding = vku::gfx::RenderElement::UBOBinding;
+            using DescSetBinding = vku::gfx::RenderElement::DescSetBinding;
             vk::DeviceSize offset = 0;
 
+            vku::gfx::RenderList renderList{ camera_.get(), UBOBinding{ &cameraUBO_, 3, cmdBufferIndex } };
+            renderList.SetCurrentPipeline(*vkPipelineLayout_, demoPipeline_->GetPipeline(), );
+
+            vku::math::AABB3<float> planesAABB_;
+            auto planesWorldAABB = planesAABB_.NewFromTransform(planesWorldMatrix_);
+            auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0, , planesWorldAABB);
+            re.BindVertexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), offset });
+            re.BindIndexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), vku::byteSizeOf(vertices_) });
+            re.BindWorldMatricesUBO(UBOBinding{ &worldUBO_, 0, cmdBufferIndex });
+            re.BindDescriptorSet(DescSetBinding{ vkImageSamplerDescritorSet_, 2 });
+
+            // cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
+
             // Material set
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkImageSamplerDescritorSet_, nullptr);
+            // cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkImageSamplerDescritorSet_, nullptr);
 
-            worldUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, cmdBufferIndex);
-            cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 3, cmdBufferIndex);
+            // worldUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, cmdBufferIndex);
+            // cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 3, cmdBufferIndex);
 
-            cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
-            cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
-            cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
+            // cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
+            // cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
+            // cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
 
-            mesh_->Draw(cmdBuffer, cmdBufferIndex, *vkPipelineLayout_);
+
+            mesh_->GetDrawElements(meshWorldMatrix_, *camera_, cmdBufferIndex, renderList);
+            // mesh_->Draw(cmdBuffer, cmdBufferIndex, *vkPipelineLayout_);
+
+            renderList.Render(cmdBuffer);
         });
 
         // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));

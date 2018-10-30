@@ -52,6 +52,8 @@ namespace vkuapp {
         vk::DescriptorSet vkImageSamplerDescritorSet_;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
+        /** Holds the graphics pipeline for transparent demo rendering. */
+        std::unique_ptr<vku::gfx::GraphicsPipeline> demoTransparentPipeline_;
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
         /** Holds index information. */
@@ -60,6 +62,9 @@ namespace vkuapp {
         vku::gfx::MemoryGroup memGroup_;
         /** Holds the memory group index of the complete buffer. */
         unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+
+        /** The world matrix of the two rotating planes. */
+        glm::mat4 planesWorldMatrix_;
 
         /** The uniform buffer object for the camera matrices. */
         vku::gfx::UniformBufferObject cameraUBO_;
@@ -83,6 +88,8 @@ namespace vkuapp {
         std::shared_ptr<vku::gfx::AssImpScene> meshInfo_;
         /** Holds the mesh to be rendered. */
         std::unique_ptr<vku::gfx::Mesh> mesh_;
+        /** The world matrix of the mesh. */
+        glm::mat4 meshWorldMatrix_;
 
         /** Holds the screen text to render fps. */
         // std::unique_ptr<ScreenText> fpsText_;
@@ -90,6 +97,6 @@ namespace vkuapp {
     protected:
         void FrameMove(float time, float elapsed, const vku::VKWindow* window) override;
         void RenderScene(const vku::VKWindow* window) override;
-        void RenderGUI() override;
+        void RenderGUI(const vku::VKWindow* window) override;
     };
 }
