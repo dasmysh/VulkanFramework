@@ -65,9 +65,6 @@ namespace vkuapp {
         initialWorldUBO.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model_)));
         initialCameraUBO.view_ = camera_->GetViewMatrix();
         initialCameraUBO.proj_ = camera_->GetProjMatrix();
-        // initialCameraUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        // initialCameraUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
-        // initialCameraUBO.proj_[1][1] *= -1.0f;
 
         std::vector<glm::vec3> planesPoints;
         for (const auto& v : vertices_) planesPoints.push_back(v.position_);
@@ -268,8 +265,15 @@ namespace vkuapp {
 
         demoTransparentPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple_transparent.vert", "simple_transparent.frag"}, screenSize, 1);
         demoTransparentPipeline_->ResetVertexInput<SimpleVertex>();
-        demoTransparentPipeline_->GetColorBlending().;
-        demoTransparentPipeline_->GetColorBlendAttachment(0).;
+        demoTransparentPipeline_->GetRasterizer().cullMode = vk::CullModeFlagBits::eNone;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).blendEnable = VK_TRUE;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).colorBlendOp = vk::BlendOp::eAdd;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).alphaBlendOp = vk::BlendOp::eAdd;
+
         demoTransparentPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, *vkPipelineLayout_);
 
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
@@ -289,25 +293,10 @@ namespace vkuapp {
             re.BindWorldMatricesUBO(UBOBinding{ &worldUBO_, 0, cmdBufferIndex });
             re.BindDescriptorSet(DescSetBinding{ vkImageSamplerDescritorSet_, 2 });
 
-            // cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, demoPipeline_->GetPipeline());
-
-            // Material set
-            // cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 2, vkImageSamplerDescritorSet_, nullptr);
-
-            // worldUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 0, cmdBufferIndex);
-            // cameraUBO_.Bind(cmdBuffer, vk::PipelineBindPoint::eGraphics, *vkPipelineLayout_, 3, cmdBufferIndex);
-
-            // cmdBuffer.bindVertexBuffers(0, 1, memGroup_.GetBuffer(completeBufferIdx_)->GetBufferPtr(), &offset);
-            // cmdBuffer.bindIndexBuffer(memGroup_.GetBuffer(completeBufferIdx_)->GetBuffer(), vku::byteSizeOf(vertices_), vk::IndexType::eUint32);
-            // cmdBuffer.drawIndexed(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0);
-
 
             mesh_->GetDrawElements(meshWorldMatrix_, *camera_, cmdBufferIndex, renderList);
-            // mesh_->Draw(cmdBuffer, cmdBufferIndex, *vkPipelineLayout_);
 
             renderList.Render(cmdBuffer);
         });
-
-        // TODO: fpsText_->SetPosition(glm::vec2(static_cast<float>(screenSize.x) - 100.0f, 10.0f));
     }
 }
