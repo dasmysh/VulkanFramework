@@ -8,21 +8,23 @@
 
 #include "FWApplication.h"
 #include "app_constants.h"
+
 #include <gfx/vk/GraphicsPipeline.h>
 #include <app/VKWindow.h>
 #include <gfx/vk/LogicalDevice.h>
 // ReSharper disable once CppUnusedIncludeDirective
 #include <gfx/vk/Framebuffer.h>
-#include "gfx/vk/buffers/DeviceBuffer.h"
-#include "gfx/vk/QueuedDeviceTransfer.h"
+#include <gfx/vk/buffers/DeviceBuffer.h>
+#include <gfx/vk/QueuedDeviceTransfer.h>
+#include <gfx/vk/buffers/HostBuffer.h>
+#include <gfx/vk/UniformBufferObject.h>
+#include <gfx/Texture2D.h>
+#include <gfx/meshes/AssImpScene.h>
+#include <gfx/meshes/Mesh.h>
+#include <gfx/camera/ArcballCamera.h>
+#include <gfx/renderer/RenderList.h>
+
 #include <glm/gtc/matrix_transform.hpp>
-#include "gfx/vk/buffers/HostBuffer.h"
-#include "gfx/vk/UniformBufferObject.h"
-#include "gfx/Texture2D.h"
-#include "gfx/meshes/AssImpScene.h"
-#include "gfx/meshes/Mesh.h"
-#include "gfx/camera/ArcballCamera.h"
-#include "gfx/renderer/RenderList.h"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
@@ -66,6 +68,10 @@ namespace vkuapp {
         // initialCameraUBO.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         // initialCameraUBO.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
         // initialCameraUBO.proj_[1][1] *= -1.0f;
+
+        std::vector<glm::vec3> planesPoints;
+        for (const auto& v : vertices_) planesPoints.push_back(v.position_);
+        planesAABB_.FromPoints(planesPoints);
 
         {
             auto uboSize = cameraUBO_.GetCompleteSize() + worldUBO_.GetCompleteSize();
@@ -175,6 +181,7 @@ namespace vkuapp {
         GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {});
 
         demoPipeline_.reset();
+        demoTransparentPipeline_.reset();
         vkUBODescriptorPool_.reset();
         vkPipelineLayout_.reset();
     }
@@ -190,10 +197,6 @@ namespace vkuapp {
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
         planesWorldMatrix_ = world_ubo.model_;
-        // camera_ubo.view_ = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        // auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
-        // camera_ubo.proj_ = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
-        // camera_ubo.proj_[1][1] *= -1.0f;
         camera_->UpdateCamera(elapsed, window);
         camera_ubo.view_ = camera_->GetViewMatrix();
         camera_ubo.proj_ = camera_->GetProjMatrix();
@@ -263,6 +266,12 @@ namespace vkuapp {
         demoPipeline_->ResetVertexInput<SimpleVertex>();
         demoPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, *vkPipelineLayout_);
 
+        demoTransparentPipeline_ = window->GetDevice().CreateGraphicsPipeline(std::vector<std::string>{"simple_transparent.vert", "simple_transparent.frag"}, screenSize, 1);
+        demoTransparentPipeline_->ResetVertexInput<SimpleVertex>();
+        demoTransparentPipeline_->GetColorBlending().;
+        demoTransparentPipeline_->GetColorBlendAttachment(0).;
+        demoTransparentPipeline_->CreatePipeline(true, window->GetRenderPass(), 0, *vkPipelineLayout_);
+
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
             using BufferReference = vku::gfx::RenderElement::BufferReference;
@@ -271,11 +280,10 @@ namespace vkuapp {
             vk::DeviceSize offset = 0;
 
             vku::gfx::RenderList renderList{ camera_.get(), UBOBinding{ &cameraUBO_, 3, cmdBufferIndex } };
-            renderList.SetCurrentPipeline(*vkPipelineLayout_, demoPipeline_->GetPipeline(), );
+            renderList.SetCurrentPipeline(*vkPipelineLayout_, demoPipeline_->GetPipeline(), demoTransparentPipeline_->GetPipeline());
 
-            vku::math::AABB3<float> planesAABB_;
             auto planesWorldAABB = planesAABB_.NewFromTransform(planesWorldMatrix_);
-            auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0, , planesWorldAABB);
+            auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0, camera_->GetViewMatrix(), planesWorldAABB);
             re.BindVertexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), offset });
             re.BindIndexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), vku::byteSizeOf(vertices_) });
             re.BindWorldMatricesUBO(UBOBinding{ &worldUBO_, 0, cmdBufferIndex });

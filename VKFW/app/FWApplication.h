@@ -8,10 +8,11 @@
 
 #pragma once
 
-#include "app/ApplicationBase.h"
-#include "gfx/VertexFormats.h"
-#include "gfx/vk/memory/MemoryGroup.h"
-#include "gfx/vk/UniformBufferObject.h"
+#include <app/ApplicationBase.h>
+#include <gfx/VertexFormats.h>
+#include <gfx/vk/memory/MemoryGroup.h>
+#include <gfx/vk/UniformBufferObject.h>
+#include <core/math/primitives.h>
 
 namespace vku::gfx {
     class DeviceBuffer;
@@ -65,6 +66,7 @@ namespace vkuapp {
 
         /** The world matrix of the two rotating planes. */
         glm::mat4 planesWorldMatrix_;
+        vku::math::AABB3<float> planesAABB_;
 
         /** The uniform buffer object for the camera matrices. */
         vku::gfx::UniformBufferObject cameraUBO_;
