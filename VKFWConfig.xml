@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cereal>
+	<configuration>
+		<cereal_class_version>1</cereal_class_version>
+		<windows size="dynamic">
+			<value0>
+				<cereal_class_version>1</cereal_class_version>
+				<title>VKFW_Application</title>
+				<fullScreen>false</fullScreen>
+				<positionLeft>0</positionLeft>
+				<positionTop>0</positionTop>
+				<width>@FW_WINDOW_WIDTH@</width>
+				<height>@FW_WINDOW_HEIGHT@</height>
+				<backBufferBits>32</backBufferBits>
+				<depthBufferBits>32</depthBufferBits>
+				<stencilBufferBits>0</stencilBufferBits>
+				<useSRGB>false</useSRGB>
+				<swapOptions>DOUBLE_BUFFERING_VSYNC</swapOptions>
+				<queues size="dynamic">
+					<value0>
+						<cereal_class_version>1</cereal_class_version>
+						<graphicsCaps>true</graphicsCaps>
+						<computeCaps>false</computeCaps>
+						<transferCaps>true</transferCaps>
+						<sparseBindingCaps>false</sparseBindingCaps>
+						<priorities size="dynamic">
+							<value0>1</value0>
+						</priorities>
+					</value0>
+					<value1>
+						<cereal_class_version>1</cereal_class_version>
+						<graphicsCaps>false</graphicsCaps>
+						<computeCaps>false</computeCaps>
+						<transferCaps>true</transferCaps>
+						<sparseBindingCaps>false</sparseBindingCaps>
+						<priorities size="dynamic">
+							<value0>1</value0>
+						</priorities>
+					</value1>
+				</queues>
+			</value0>
+		</windows>
+		<useValidationLayers>true</useValidationLayers>
+		<pauseOnKillFocus>false</pauseOnKillFocus>
+		<resourceBase>@FW_RESOURCE_BASE_PATH@</resourceBase>
+		<resourceDirectories size="dynamic">
+			<value0>@FWLIB_RESOURCE_BASE_PATH@</value0>
+			<value1>@FW_EVAL_BASE_PATH@</value1>
+		</resourceDirectories>
+		<evalDirectory>@FW_EVAL_BASE_PATH@</evalDirectory>
+	</configuration>
+</cereal>

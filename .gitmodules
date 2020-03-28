@@ -1,4 +1,3 @@
-[submodule "VKFWLib"]
-	path = VKFWLib
+[submodule "extern/vkfw_core"]
+	path = extern/vkfw_core
 	url = https://github.com/dasmysh/VulkanFramework_Lib
-	branch = master
