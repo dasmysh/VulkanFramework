@@ -1,7 +1,7 @@
 ---
 Language:        Cpp
 # BasedOnStyle:  LLVM
-AccessModifierOffset: -2
+AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
@@ -20,7 +20,7 @@ AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
 BinPackArguments: true
 BinPackParameters: true
-BraceWrapping:   
+BraceWrapping:
   AfterClass:      true
   AfterControlStatement: false
   AfterEnum:       true
@@ -49,7 +49,7 @@ DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
 FixNamespaceComments: false
 ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]
-IncludeCategories: 
+IncludeCategories:
   - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
     Priority:        2
   - Regex:           '^(<|"(gtest|isl|json)/)'

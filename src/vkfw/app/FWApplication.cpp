@@ -6,7 +6,7 @@
  * @brief  Contains the implementation of FWApplication.
  */
 
-#include "FWApplication.h"
+#include "app/FWApplication.h"
 #include "app_constants.h"
 
 #include <gfx/vk/GraphicsPipeline.h>
@@ -29,7 +29,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
 
-namespace vkuapp {
+namespace vkfw_app {
 
     /**
      * Constructor.
@@ -48,19 +48,19 @@ namespace vkuapp {
         indices_{ 0, 1, 2, 2, 3, 0,
                   4, 5, 6, 6, 7, 4 },
         memGroup_{ &GetWindow(0)->GetDevice(), vk::MemoryPropertyFlags() },
-        cameraUBO_{ vku::gfx::UniformBufferObject::Create<CameraMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) },
-        worldUBO_{ vku::gfx::UniformBufferObject::Create<vku::gfx::WorldMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) }
+        cameraUBO_{ vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) },
+        worldUBO_{ vkfw_core::gfx::UniformBufferObject::Create<vkfw_core::gfx::WorldMatrixUBO>(&GetWindow(0)->GetDevice(), GetWindow(0)->GetFramebuffers().size()) }
     {
         auto& device = GetWindow(0)->GetDevice();
-        vku::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(0, 0) }; // as long as the last transfer of texture layouts is done on this queue, we have to use the graphics queue here.
+        vkfw_core::gfx::QueuedDeviceTransfer transfer{ &device, std::make_pair(0, 0) }; // as long as the last transfer of texture layouts is done on this queue, we have to use the graphics queue here.
 
         auto numUBOBuffers = GetWindow(0)->GetFramebuffers().size();
 
         auto aspectRatio = static_cast<float>(GetWindow(0)->GetWidth()) / static_cast<float>(GetWindow(0)->GetHeight());
-        camera_ = std::make_unique<vku::gfx::ArcballCamera>(glm::vec3(2.0f, 2.0f, 2.0f), glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+        camera_ = std::make_unique<vkfw_core::gfx::ArcballCamera>(glm::vec3(2.0f, 2.0f, 2.0f), glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
 
         CameraMatrixUBO initialCameraUBO;
-        vku::gfx::WorldMatrixUBO initialWorldUBO;
+        vkfw_core::gfx::WorldMatrixUBO initialWorldUBO;
         initialWorldUBO.model_ = glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model_)));
         initialCameraUBO.view_ = camera_->GetViewMatrix();
@@ -72,8 +72,8 @@ namespace vkuapp {
 
         {
             auto uboSize = cameraUBO_.GetCompleteSize() + worldUBO_.GetCompleteSize();
-            auto indexBufferOffset = vku::byteSizeOf(vertices_);
-            auto uniformDataOffset = device.CalculateUniformBufferAlignment(indexBufferOffset + vku::byteSizeOf(indices_));
+            auto indexBufferOffset = vkfw_core::byteSizeOf(vertices_);
+            auto uniformDataOffset = device.CalculateUniformBufferAlignment(indexBufferOffset + vkfw_core::byteSizeOf(indices_));
             auto completeBufferSize = uniformDataOffset + uboSize;
 
             completeBufferIdx_ = memGroup_.AddBufferToGroup(vk::BufferUsageFlagBits::eVertexBuffer
@@ -86,7 +86,7 @@ namespace vkuapp {
             cameraUBO_.AddUBOToBuffer(&memGroup_, completeBufferIdx_, uniformDataOffset, initialCameraUBO);
             worldUBO_.AddUBOToBuffer(&memGroup_, completeBufferIdx_, uniformDataOffset + cameraUBO_.GetCompleteSize(), initialWorldUBO);
 
-            demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
+            demoTexture_ = device.GetTextureManager()->GetResource("demo.jpg", true, true, memGroup_, std::vector<std::uint32_t>{ {0, 1} });
             vk::SamplerCreateInfo samplerCreateInfo{ vk::SamplerCreateFlags(), vk::Filter::eLinear, vk::Filter::eLinear,
                 vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat };
             vkDemoSampler_ = device.GetDevice().createSamplerUnique(samplerCreateInfo);
@@ -98,8 +98,8 @@ namespace vkuapp {
             //////////////////////////////////////////////////////////////////////////
         }
 
-        meshInfo_ = std::make_shared<vku::gfx::AssImpScene>("teapot/teapot.obj", &device);
-        mesh_ = std::make_unique<vku::gfx::Mesh>(vku::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex, SimpleMaterial>(meshInfo_,
+        meshInfo_ = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", &device);
+        mesh_ = std::make_unique<vkfw_core::gfx::Mesh>(vkfw_core::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex, SimpleMaterial>(meshInfo_,
             numUBOBuffers, &device, vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{ {0, 1} }));
         mesh_->UploadMeshData(transfer);
 
@@ -119,7 +119,7 @@ namespace vkuapp {
                 vkTransferCommandBuffers_[i]->begin(beginInfo);
 
                 cameraUBO_.FillUploadCmdBuffer<CameraMatrixUBO>(*vkTransferCommandBuffers_[i], i);
-                worldUBO_.FillUploadCmdBuffer<vku::gfx::WorldMatrixUBO>(*vkTransferCommandBuffers_[i], i);
+                worldUBO_.FillUploadCmdBuffer<vkfw_core::gfx::WorldMatrixUBO>(*vkTransferCommandBuffers_[i], i);
 
                 mesh_->TransferWorldMatrices(*vkTransferCommandBuffers_[i], i);
                 vkTransferCommandBuffers_[i]->end();
@@ -175,7 +175,7 @@ namespace vkuapp {
     FWApplication::~FWApplication()
     {
         // remove pipeline from command buffer.
-        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {});
+        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer&, std::size_t) {});
 
         demoPipeline_.reset();
         demoTransparentPipeline_.reset();
@@ -183,14 +183,14 @@ namespace vkuapp {
         vkPipelineLayout_.reset();
     }
 
-    void FWApplication::FrameMove(float time, float elapsed, const vku::VKWindow* window)
+    void FWApplication::FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window)
     {
         if (window != GetWindow(0)) return;
 
         auto& device = window->GetDevice();
 
         CameraMatrixUBO camera_ubo;
-        vku::gfx::WorldMatrixUBO world_ubo;
+        vkfw_core::gfx::WorldMatrixUBO world_ubo;
         world_ubo.model_ = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.normalMatrix_ = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model_)));
         planesWorldMatrix_ = world_ubo.model_;
@@ -226,17 +226,17 @@ namespace vkuapp {
         GetCameraView()->UpdateCamera();*/
     }
 
-    void FWApplication::RenderScene(const vku::VKWindow* window)
+    void FWApplication::RenderScene(const vkfw_core::VKWindow*)
     {
     }
 
-    void FWApplication::RenderGUI(const vku::VKWindow* window)
+    void FWApplication::RenderGUI(const vkfw_core::VKWindow* )
     {
         static bool show_demo_window = true;
         ImGui::ShowDemoWindow(&show_demo_window);
     }
 
-    bool FWApplication::HandleKeyboard(int key, int scancode, int action, int mods, vku::VKWindow* sender)
+    bool FWApplication::HandleKeyboard(int key, int scancode, int action, int mods, vkfw_core::VKWindow* sender)
     {
         if (ApplicationBase::HandleKeyboard(key, scancode, action, mods, sender)) return true;
         if (!IsRunning() || IsPaused()) return false;
@@ -244,13 +244,13 @@ namespace vkuapp {
         return handled;
     }
 
-    bool FWApplication::HandleMouseApp(int button, int action, int mods, float mouseWheelDelta, vku::VKWindow* sender)
+    bool FWApplication::HandleMouseApp(int button, int action, int, float mouseWheelDelta, vkfw_core::VKWindow* sender)
     {
         auto handled = camera_->HandleMouse(button, action, mouseWheelDelta, sender);
         return handled;
     }
 
-    void FWApplication::Resize(const glm::uvec2& screenSize, const vku::VKWindow* window)
+    void FWApplication::Resize(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
     {
         // TODO: handle other windows... [11/9/2016 Sebastian Maisch]
         // TODO: maybe use lambdas to register for resize events...
@@ -278,18 +278,18 @@ namespace vkuapp {
 
         window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
-            using BufferReference = vku::gfx::RenderElement::BufferReference;
-            using UBOBinding = vku::gfx::RenderElement::UBOBinding;
-            using DescSetBinding = vku::gfx::RenderElement::DescSetBinding;
+            using BufferReference = vkfw_core::gfx::RenderElement::BufferReference;
+            using UBOBinding = vkfw_core::gfx::RenderElement::UBOBinding;
+            using DescSetBinding = vkfw_core::gfx::RenderElement::DescSetBinding;
             vk::DeviceSize offset = 0;
 
-            vku::gfx::RenderList renderList{ camera_.get(), UBOBinding{ &cameraUBO_, 3, cmdBufferIndex } };
+            vkfw_core::gfx::RenderList renderList{ camera_.get(), UBOBinding{ &cameraUBO_, 3, cmdBufferIndex } };
             renderList.SetCurrentPipeline(*vkPipelineLayout_, demoPipeline_->GetPipeline(), demoTransparentPipeline_->GetPipeline());
 
             auto planesWorldAABB = planesAABB_.NewFromTransform(planesWorldMatrix_);
             auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(indices_.size()), 1, 0, 0, 0, camera_->GetViewMatrix(), planesWorldAABB);
             re.BindVertexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), offset });
-            re.BindIndexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), vku::byteSizeOf(vertices_) });
+            re.BindIndexBuffer(BufferReference{ memGroup_.GetBuffer(completeBufferIdx_), vkfw_core::byteSizeOf(vertices_) });
             re.BindWorldMatricesUBO(UBOBinding{ &worldUBO_, 0, cmdBufferIndex });
             re.BindDescriptorSet(DescSetBinding{ vkImageSamplerDescritorSet_, 2 });
 

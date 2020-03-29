@@ -181,9 +181,11 @@ $RECYCLE.BIN/
 *.out
 *.app
 
+resources/**/*.gen
+resources/**/*.gen.*
+resources/**/*.myshbin
+resources/**/*.vkbin
+resources/**/*.spv
+
 # include all resource files
 !**/resources/**/*.obj
-*.spv
-*.myshbin
-build15/
-*.vkbin

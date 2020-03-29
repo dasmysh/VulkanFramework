@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <glm/glm.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
 #include <vulkan/vulkan.hpp>
 
-namespace vku::gfx {
+namespace vkfw_core::gfx {
     class MeshInfo;
     struct Material;
 }
 
-namespace vkuapp {
+namespace vkfw_app {
 
     struct SimpleVertex
     {
@@ -24,16 +25,16 @@ namespace vkuapp {
         glm::vec3 color_;
         glm::vec2 texCoord_;
 
-        SimpleVertex() {};
+        SimpleVertex() = default;
         SimpleVertex(const glm::vec3& position, const glm::vec3& color, const glm::vec2& texCoord) :
             position_{ position }, color_{ color }, texCoord_{ texCoord } {};
-        SimpleVertex(const vku::gfx::MeshInfo* mi, std::size_t index);
+        SimpleVertex(const vkfw_core::gfx::MeshInfo* mi, std::size_t index);
         static vk::VertexInputBindingDescription bindingDescription_;
         static std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions_;
     };
 
     struct SimpleMaterial
     {
-        SimpleMaterial(const vku::gfx::Material&) {}
+        SimpleMaterial(const vkfw_core::gfx::Material&) {}
     };
 }

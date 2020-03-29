@@ -9,52 +9,62 @@
 #include "main.h"
 #include "app_constants.h"
 #include "app/FWApplication.h"
-#include <g3log/logworker.hpp>
-#include <g3log/loglevels.hpp>
-#ifndef NDEBUG
-#include <core/g3log/rotfilesink.h>
-#else
-#include <core/g3log/filesink.h>
-#endif
 
-#pragma warning(push, 3)
-#include <Windows.h>
-#pragma warning(pop)
+#include <core/spdlog/sinks/filesink.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/msvc_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 
 
-
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+int main(int /* argc */, const char** /* argv */)
 {
-    const std::string directory = "./";
-    const std::string name = vkuapp::logFileName;
-    auto worker = g3::LogWorker::createLogWorker();
-#ifndef NDEBUG
-    auto handle = worker->addSink(std::make_unique<vku::RotationFileSink>(name, directory, 5), &vku::RotationFileSink::fileWrite);
-#else
-    auto handle = worker->addSink(std::make_unique<vku::FileSink>(name, directory, false), &vku::FileSink::fileWrite);
-#endif
+    try {
+        const std::string directory;
+        const std::string name = vkfw_app::logFileName;
 
-    g3::only_change_at_initialization::addLogLevel(G3LOG_DEBUG, false);
-    g3::only_change_at_initialization::addLogLevel(WARNING, false);
-    g3::only_change_at_initialization::addLogLevel(VK_GEN, true);
-    g3::only_change_at_initialization::addLogLevel(VK_INFO, true);
-    g3::only_change_at_initialization::addLogLevel(VK_ERROR, true);
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_level(spdlog::level::warn);
+        console_sink->set_pattern(fmt::format("[{}] [%^%l%$] %v", vkfw_app::logTag));
 
-#ifndef NDEBUG
-    g3::only_change_at_initialization::addLogLevel(G3LOG_DEBUG, true);
-    g3::only_change_at_initialization::addLogLevel(WARNING, true);
-    g3::only_change_at_initialization::addLogLevel(VK_DEBUG, true);
-    g3::only_change_at_initialization::addLogLevel(VK_WARNING, true);
-    g3::only_change_at_initialization::addLogLevel(VK_PERF_WARNING, true);
-#endif
+        auto devenv_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        devenv_sink->set_level(spdlog::level::err);
+        devenv_sink->set_pattern(fmt::format("[{}] [%^%l%$] %v", vkfw_app::logTag));
 
-    g3::initializeLogging(worker.get());
+        std::shared_ptr<spdlog::sinks::base_sink<std::mutex>> file_sink;
+        if constexpr (vkfw_core::debug_build) {
+            file_sink = std::make_shared<vkfw_core::spdlog::sinks::rotating_open_file_sink_mt>(
+                directory.empty() ? name : directory + "/" + name, 5);
+            file_sink->set_level(spdlog::level::trace);
+        } else {
+            file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+                directory.empty() ? name : directory + "/" + name, 5);
+            file_sink->set_level(spdlog::level::trace);
+        }
 
-    LOG(INFO) << "Log created.";
+        spdlog::sinks_init_list sink_list = {file_sink, console_sink, devenv_sink};
+        auto logger = std::make_shared<spdlog::logger>(vkfw_app::logTag, sink_list.begin(), sink_list.end());
 
-    vkuapp::FWApplication app;
+        spdlog::set_default_logger(logger);
+        spdlog::flush_on(spdlog::level::err);
 
-    LOG(G3LOG_DEBUG) << "Starting main loop.";
+        if constexpr (vkfw_core::debug_build) {
+            spdlog::set_level(spdlog::level::trace);
+        } else {
+            spdlog::set_level(spdlog::level::err);
+        }
+
+        spdlog::info("Log created.");
+
+    } catch (const spdlog::spdlog_ex& ex) {
+        std::cerr << "Log initialization failed: " << ex.what() << std::endl;
+        return 0;
+    }
+
+    vkfw_app::FWApplication app;
+
+    spdlog::debug("Starting main loop.");
     app.StartRun();
     auto done = false;
     while (app.IsRunning() && !done) {
@@ -62,12 +72,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             app.Step();
         }
         catch (std::runtime_error e) {
-            LOG(FATAL) << "Could not process frame step: " << e.what() << std::endl << "Exiting.";
+            spdlog::critical("Could not process frame step: {}\nExiting.", e.what());
             done = true;
         }
     }
     app.EndRun();
-    LOG(G3LOG_DEBUG) << "Main loop ended.";
+    spdlog::debug("Main loop ended.");
 
     return 0;
 }

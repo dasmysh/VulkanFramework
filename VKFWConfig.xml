@@ -9,8 +9,8 @@
 				<fullScreen>false</fullScreen>
 				<positionLeft>0</positionLeft>
 				<positionTop>0</positionTop>
-				<width>@FW_WINDOW_WIDTH@</width>
-				<height>@FW_WINDOW_HEIGHT@</height>
+				<width>@VKFW_WINDOW_WIDTH@</width>
+				<height>@VKFW_WINDOW_HEIGHT@</height>
 				<backBufferBits>32</backBufferBits>
 				<depthBufferBits>32</depthBufferBits>
 				<stencilBufferBits>0</stencilBufferBits>
@@ -42,11 +42,11 @@
 		</windows>
 		<useValidationLayers>true</useValidationLayers>
 		<pauseOnKillFocus>false</pauseOnKillFocus>
-		<resourceBase>@FW_RESOURCE_BASE_PATH@</resourceBase>
+		<resourceBase>@VKFW_RESOURCE_BASE_PATH@</resourceBase>
 		<resourceDirectories size="dynamic">
-			<value0>@FWLIB_RESOURCE_BASE_PATH@</value0>
-			<value1>@FW_EVAL_BASE_PATH@</value1>
+			<value0>@VKFWCORE_RESOURCE_BASE_PATH@</value0>
+			<value1>@VKFW_EVAL_BASE_PATH@</value1>
 		</resourceDirectories>
-		<evalDirectory>@FW_EVAL_BASE_PATH@</evalDirectory>
+		<evalDirectory>@VKFW_EVAL_BASE_PATH@</evalDirectory>
 	</configuration>
 </cereal>

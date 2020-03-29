@@ -14,7 +14,7 @@
 #include <gfx/vk/UniformBufferObject.h>
 #include <core/math/primitives.h>
 
-namespace vku::gfx {
+namespace vkfw_core::gfx {
     class DeviceBuffer;
     class GraphicsPipeline;
     class Texture2D;
@@ -24,7 +24,7 @@ namespace vku::gfx {
     class UserControlledCamera;
 }
 
-namespace vkuapp {
+namespace vkfw_app {
 
     struct CameraMatrixUBO
     {
@@ -32,15 +32,16 @@ namespace vkuapp {
         glm::mat4 proj_;
     };
 
-    class FWApplication final : public vku::ApplicationBase
+    class FWApplication final : public vkfw_core::ApplicationBase
     {
     public:
         explicit FWApplication();
         virtual ~FWApplication() override;
 
-        bool HandleKeyboard(int key, int scancode, int action, int mods, vku::VKWindow* sender) override;
-        bool HandleMouseApp(int button, int action, int mods, float mouseWheelDelta, vku::VKWindow* sender) override;
-        void Resize(const glm::uvec2& screenSize, const vku::VKWindow* window) override;
+        bool HandleKeyboard(int key, int scancode, int action, int mods, vkfw_core::VKWindow* sender) override;
+        bool HandleMouseApp(int button, int action, int mods, float mouseWheelDelta,
+            vkfw_core::VKWindow* sender) override;
+        void Resize(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window) override;
 
     private:
         /** Holds the descriptor set layouts for the demo pipeline. */
@@ -52,26 +53,26 @@ namespace vkuapp {
         /** Holds the descriptor set for the image/sampler binding. */
         vk::DescriptorSet vkImageSamplerDescritorSet_;
         /** Holds the graphics pipeline for demo rendering. */
-        std::unique_ptr<vku::gfx::GraphicsPipeline> demoPipeline_;
+        std::unique_ptr<vkfw_core::gfx::GraphicsPipeline> demoPipeline_;
         /** Holds the graphics pipeline for transparent demo rendering. */
-        std::unique_ptr<vku::gfx::GraphicsPipeline> demoTransparentPipeline_;
+        std::unique_ptr<vkfw_core::gfx::GraphicsPipeline> demoTransparentPipeline_;
         /** Holds vertex information. */
         std::vector<SimpleVertex> vertices_;
         /** Holds index information. */
         std::vector<std::uint32_t> indices_;
         /** Holds the vertex and index buffer. */
-        vku::gfx::MemoryGroup memGroup_;
+        vkfw_core::gfx::MemoryGroup memGroup_;
         /** Holds the memory group index of the complete buffer. */
-        unsigned int completeBufferIdx_ = vku::gfx::MemoryGroup::INVALID_INDEX;
+        unsigned int completeBufferIdx_ = vkfw_core::gfx::MemoryGroup::INVALID_INDEX;
 
         /** The world matrix of the two rotating planes. */
         glm::mat4 planesWorldMatrix_;
-        vku::math::AABB3<float> planesAABB_;
+        vkfw_core::math::AABB3<float> planesAABB_;
 
         /** The uniform buffer object for the camera matrices. */
-        vku::gfx::UniformBufferObject cameraUBO_;
+        vkfw_core::gfx::UniformBufferObject cameraUBO_;
         /** The uniform buffer object for the world matrices. */
-        vku::gfx::UniformBufferObject worldUBO_;
+        vkfw_core::gfx::UniformBufferObject worldUBO_;
 
         /** The command pool for the transfer cmd buffers. */
         vk::UniqueCommandPool transferCmdPool_; // TODO: at some point we may need one per buffer? [10/19/2018 Sebastian Maisch]
@@ -79,17 +80,17 @@ namespace vkuapp {
         std::vector<vk::UniqueCommandBuffer> vkTransferCommandBuffers_;
 
         /** The camera model used. */
-        std::unique_ptr<vku::gfx::UserControlledCamera> camera_;
+        std::unique_ptr<vkfw_core::gfx::UserControlledCamera> camera_;
 
         /** Holds the texture used. */
-        std::shared_ptr<vku::gfx::Texture2D> demoTexture_;
+        std::shared_ptr<vkfw_core::gfx::Texture2D> demoTexture_;
         /** Holds the texture sampler. */
         vk::UniqueSampler vkDemoSampler_;
 
         /** Holds the AssImp demo model. */
-        std::shared_ptr<vku::gfx::AssImpScene> meshInfo_;
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> meshInfo_;
         /** Holds the mesh to be rendered. */
-        std::unique_ptr<vku::gfx::Mesh> mesh_;
+        std::unique_ptr<vkfw_core::gfx::Mesh> mesh_;
         /** The world matrix of the mesh. */
         glm::mat4 meshWorldMatrix_;
 
@@ -97,8 +98,8 @@ namespace vkuapp {
         // std::unique_ptr<ScreenText> fpsText_;
 
     protected:
-        void FrameMove(float time, float elapsed, const vku::VKWindow* window) override;
-        void RenderScene(const vku::VKWindow* window) override;
-        void RenderGUI(const vku::VKWindow* window) override;
+        void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
+        void RenderScene(const vkfw_core::VKWindow* window) override;
+        void RenderGUI(const vkfw_core::VKWindow* window) override;
     };
 }

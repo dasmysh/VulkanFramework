@@ -5,7 +5,7 @@
         "commandLine": "",
         "environment": [
         ],
-        "executable": "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/${CONFIG_TYPE}/${PROJECT_NAME}.exe",
+        "executable": "${CMAKE_BINARY_DIR}/${CONFIG_TYPE}/${APPLICATION_NAME}.exe",
         "inject": false,
         "options": {
             "allowFullscreen": true,
