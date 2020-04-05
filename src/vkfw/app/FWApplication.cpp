@@ -175,7 +175,7 @@ namespace vkfw_app {
     FWApplication::~FWApplication()
     {
         // remove pipeline from command buffer.
-        GetWindow(0)->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer&, std::size_t) {});
+        GetWindow(0)->UpdatePrimaryCommandBuffers([](const vk::CommandBuffer&, std::size_t) {});
 
         demoPipeline_.reset();
         demoTransparentPipeline_.reset();
