@@ -21,16 +21,16 @@ namespace vkfw_app {
 
     struct SimpleVertex
     {
-        glm::vec3 position_;
-        glm::vec3 color_;
-        glm::vec2 texCoord_;
+        glm::vec3 m_position;
+        glm::vec3 m_color;
+        glm::vec2 m_texCoord;
 
         SimpleVertex() = default;
         SimpleVertex(const glm::vec3& position, const glm::vec3& color, const glm::vec2& texCoord) :
-            position_{ position }, color_{ color }, texCoord_{ texCoord } {};
+            m_position{ position }, m_color{ color }, m_texCoord{ texCoord } {};
         SimpleVertex(const vkfw_core::gfx::MeshInfo* mi, std::size_t index);
-        static vk::VertexInputBindingDescription bindingDescription_;
-        static std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions_;
+        static vk::VertexInputBindingDescription m_bindingDescription;
+        static std::array<vk::VertexInputAttributeDescription, 3> m_attributeDescriptions;
     };
 
     struct SimpleMaterial
