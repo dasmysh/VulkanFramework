@@ -21,8 +21,8 @@
 int main(int /* argc */, const char** /* argv */)
 {
     try {
-        const std::string directory;
-        const std::string name = vkfw_app::logFileName;
+        constexpr std::string_view directory = "";
+        constexpr std::string_view name = vkfw_app::logFileName;
 
         auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         console_sink->set_level(spdlog::level::warn);
@@ -35,16 +35,16 @@ int main(int /* argc */, const char** /* argv */)
         std::shared_ptr<spdlog::sinks::base_sink<std::mutex>> file_sink;
         if constexpr (vkfw_core::debug_build) {
             file_sink = std::make_shared<vkfw_core::spdlog::sinks::rotating_open_file_sink_mt>(
-                directory.empty() ? name : directory + "/" + name, 5);
+                directory.empty() ? std::string{name} : std::string{directory}.append("/").append(name), 5);
             file_sink->set_level(spdlog::level::trace);
         } else {
             file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
-                directory.empty() ? name : directory + "/" + name, 5);
+                directory.empty() ? std::string{name} : std::string{directory}.append("/").append(name), 5);
             file_sink->set_level(spdlog::level::trace);
         }
 
         spdlog::sinks_init_list sink_list = {file_sink, console_sink, devenv_sink};
-        auto logger = std::make_shared<spdlog::logger>(vkfw_app::logTag, sink_list.begin(), sink_list.end());
+        auto logger = std::make_shared<spdlog::logger>(vkfw_app::logTag.data(), sink_list.begin(), sink_list.end());
 
         spdlog::set_default_logger(logger);
         spdlog::flush_on(spdlog::level::err);
