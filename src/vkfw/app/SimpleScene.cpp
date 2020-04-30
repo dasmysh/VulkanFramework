@@ -47,7 +47,7 @@ namespace vkfw_app::scene::simple {
 
     SimpleScene::~SimpleScene() = default;
 
-    void SimpleScene::CreatePipeline(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
+    void SimpleScene::CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window)
     {
         // TODO: like this the shaders will be recompiled on each resize. [3/26/2017 Sebastian Maisch]
         // maybe set viewport as dynamic...
@@ -71,7 +71,8 @@ namespace vkfw_app::scene::simple {
         m_demoTransparentPipeline->CreatePipeline(true, window->GetRenderPass(), 0, *m_vkPipelineLayout);
     }
 
-    void SimpleScene::UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
+    void SimpleScene::UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
+                                          vkfw_core::VKWindow*)
     {
         using BufferReference = vkfw_core::gfx::RenderElement::BufferReference;
         using UBOBinding = vkfw_core::gfx::RenderElement::UBOBinding;
@@ -119,7 +120,7 @@ namespace vkfw_app::scene::simple {
         GetDevice()->GetQueue(1, 0).submit(submitInfo, vk::Fence());
     }
 
-    void SimpleScene::RenderScene(const vkfw_core::VKWindow* window) {}
+    void SimpleScene::RenderScene(const vkfw_core::VKWindow*) {}
 
     void SimpleScene::InitializeScene()
     {

@@ -85,7 +85,7 @@ namespace vkfw_app {
         return handled;
     }
 
-    void FWApplication::Resize(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
+    void FWApplication::Resize(const glm::uvec2& screenSize, vkfw_core::VKWindow* window)
     {
         // TODO: handle other windows... [11/9/2016 Sebastian Maisch]
         // TODO: maybe use lambdas to register for resize events...
@@ -93,9 +93,9 @@ namespace vkfw_app {
 
         m_simple_scene.CreatePipeline(screenSize, window);
 
-        window->UpdatePrimaryCommandBuffers([this](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
+        window->UpdatePrimaryCommandBuffers([this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
-            m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex);
+            m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
         });
     }
 }

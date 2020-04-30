@@ -30,8 +30,9 @@ namespace vkfw_app::scene {
               std::size_t t_num_framebuffers);
         virtual ~Scene() = default;
 
-        virtual void CreatePipeline(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window) = 0;
-        virtual void UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) = 0;
+        virtual void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) = 0;
+        virtual void UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
+                                         vkfw_core::VKWindow* window) = 0;
         virtual void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) = 0;
         virtual void RenderScene(const vkfw_core::VKWindow* window) = 0;
 

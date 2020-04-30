@@ -27,7 +27,7 @@ namespace vkfw_app {
         bool HandleKeyboard(int key, int scancode, int action, int mods, vkfw_core::VKWindow* sender) override;
         bool HandleMouseApp(int button, int action, int mods, float mouseWheelDelta,
             vkfw_core::VKWindow* sender) override;
-        void Resize(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window) override;
+        void Resize(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
 
     private:
 
