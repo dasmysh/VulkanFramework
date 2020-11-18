@@ -28,6 +28,17 @@
 
 namespace vkfw_app {
 
+    vk::PhysicalDeviceBufferDeviceAddressFeatures FWApplication::enabledBufferDeviceAddresFeatures =
+        vk::PhysicalDeviceBufferDeviceAddressFeatures{VK_TRUE};
+    vk::PhysicalDeviceRayTracingFeaturesKHR FWApplication::enabledRayTracingFeatures =
+        vk::PhysicalDeviceRayTracingFeaturesKHR{VK_TRUE};
+
+    void* FWApplication::CreateDeviceFeaturesNextChain()
+    {
+        enabledRayTracingFeatures.pNext = &enabledBufferDeviceAddresFeatures;
+        return &enabledRayTracingFeatures;
+    }
+
     /**
      * Constructor.
      */
@@ -36,7 +47,11 @@ namespace vkfw_app {
                           applicationVersion,
                           configFileName,
                           {VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME},
-                          {VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, VK_NV_RAY_TRACING_EXTENSION_NAME}},
+                          {VK_KHR_MAINTENANCE3_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+                           VK_KHR_RAY_TRACING_EXTENSION_NAME, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+                           VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+                           VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME},
+                          CreateDeviceFeaturesNextChain()},
           m_camera{std::make_unique<vkfw_core::gfx::ArcballCamera>(glm::vec3(2.0f, 2.0f, 2.0f), glm::radians(45.0f),
                                                                    static_cast<float>(GetWindow(0)->GetWidth())
                                                                        / static_cast<float>(GetWindow(0)->GetHeight()),
@@ -98,4 +113,5 @@ namespace vkfw_app {
             m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
         });
     }
+
 }
