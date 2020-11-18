@@ -16,11 +16,12 @@
 				<stencilBufferBits>0</stencilBufferBits>
 				<useSRGB>false</useSRGB>
 				<swapOptions>DOUBLE_BUFFERING_VSYNC</swapOptions>
+				<useRayTracing>true</useRayTracing>
 				<queues size="dynamic">
 					<value0>
 						<cereal_class_version>1</cereal_class_version>
 						<graphicsCaps>true</graphicsCaps>
-						<computeCaps>false</computeCaps>
+						<computeCaps>true</computeCaps>
 						<transferCaps>true</transferCaps>
 						<sparseBindingCaps>false</sparseBindingCaps>
 						<priorities size="dynamic">

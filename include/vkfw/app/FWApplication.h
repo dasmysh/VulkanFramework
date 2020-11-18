@@ -30,10 +30,6 @@ namespace vkfw_app {
         void Resize(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
 
     private:
-        static void* CreateDeviceFeaturesNextChain();
-        static vk::PhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures;
-        static vk::PhysicalDeviceRayTracingFeaturesKHR enabledRayTracingFeatures;
-
         /** The camera model used. */
         std::unique_ptr<vkfw_core::gfx::UserControlledCamera> m_camera;
 
