@@ -93,7 +93,9 @@ namespace vkfw_app {
 
         window->UpdatePrimaryCommandBuffers([this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
+            window->BeginSwapchainRenderPass(cmdBufferIndex);
             m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
+            window->EndSwapchainRenderPass(cmdBufferIndex);
         });
     }
 
