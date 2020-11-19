@@ -34,6 +34,7 @@ namespace vkfw_app {
         std::unique_ptr<vkfw_core::gfx::UserControlledCamera> m_camera;
 
         scene::simple::SimpleScene m_simple_scene;
+        scene::rt::RaytracingScene m_rt_scene;
 
     protected:
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;

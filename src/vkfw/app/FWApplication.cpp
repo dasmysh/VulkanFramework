@@ -40,6 +40,7 @@ namespace vkfw_app {
                                                                        / static_cast<float>(GetWindow(0)->GetHeight()),
                                                                    0.1f, 10.0f)},
           m_simple_scene{&GetWindow(0)->GetDevice(), m_camera.get(), GetWindow(0)->GetFramebuffers().size()},
+          m_rt_scene{&GetWindow(0)->GetDevice(), m_camera.get(), GetWindow(0)->GetFramebuffers().size()}
     {
         auto fbSize = GetWindow(0)->GetFramebuffers()[0].GetSize();
         Resize(fbSize, GetWindow(0));
@@ -90,12 +91,15 @@ namespace vkfw_app {
         if (window != GetWindow(0)) return;
 
         m_simple_scene.CreatePipeline(screenSize, window);
+        m_rt_scene.CreatePipeline(screenSize, window);
 
         window->UpdatePrimaryCommandBuffers([this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
         {
-            window->BeginSwapchainRenderPass(cmdBufferIndex);
-            m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
-            window->EndSwapchainRenderPass(cmdBufferIndex);
+            m_rt_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
+
+            // window->BeginSwapchainRenderPass(cmdBufferIndex);
+            // m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
+            // window->EndSwapchainRenderPass(cmdBufferIndex);
         });
     }
 
