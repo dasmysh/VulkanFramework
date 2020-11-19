@@ -17,6 +17,7 @@
 #include <gfx/vk/QueuedDeviceTransfer.h>
 #include <gfx/vk/memory/DeviceMemory.h>
 #include <gfx/camera/UserControlledCamera.h>
+#include <glm/gtc/matrix_inverse.hpp>
 
 #undef MemoryBarrier
 
@@ -51,10 +52,6 @@ namespace vkfw_app::scene::rt {
         InitializeStorageImage(screenSize, window);
         InitializeDescriptorSets();
 
-        // constexpr uint32_t shaderIndexRaygen = 0;
-        // constexpr uint32_t shaderIndexMiss = 1;
-        // constexpr uint32_t shaderIndexClosestHit = 2;
-
         m_shaders.resize(3);
         m_shaders[indexRaygen] = GetDevice()->GetShaderManager()->GetResource("shader/rt/raygen.rgen");
         m_shaders[indexMiss] = GetDevice()->GetShaderManager()->GetResource("shader/rt/miss.rmiss");
@@ -65,7 +62,7 @@ namespace vkfw_app::scene::rt {
         m_shaders[indexMiss]->FillShaderStageInfo(shaderStages[indexMiss]);
         m_shaders[indexClosestHit]->FillShaderStageInfo(shaderStages[indexClosestHit]);
 
-        m_shaderGroups.resize(numShaderGroups);
+        m_shaderGroups.resize(shaderGroupCount);
         m_shaderGroups[indexRaygen].setType(vk::RayTracingShaderGroupTypeKHR::eGeneral);
         m_shaderGroups[indexRaygen].setGeneralShader(indexRaygen);
         m_shaderGroups[indexRaygen].setClosestHitShader(VK_SHADER_UNUSED_KHR);
@@ -146,7 +143,24 @@ namespace vkfw_app::scene::rt {
         m_storageImage->TransitionLayout(vk::ImageLayout::eGeneral, cmdBuffer);
     }
 
-    void RaytracingScene::FrameMove(float, float, const vkfw_core::VKWindow*) {}
+    void RaytracingScene::FrameMove(float time, float, const vkfw_core::VKWindow* window)
+    {
+        CameraMatrixUBO camera_ubo{glm::inverse(GetCamera()->GetViewMatrix()),
+                                   glm::inverse(GetCamera()->GetProjMatrix())};
+        vkfw_core::gfx::WorldMatrixUBO world_ubo;
+        world_ubo.m_model =
+            glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        world_ubo.m_normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.m_model)));
+
+        auto uboIndex = window->GetCurrentlyRenderedImageIndex();
+        m_cameraUBO.UpdateInstanceData(uboIndex, camera_ubo);
+        m_worldUBO.UpdateInstanceData(uboIndex, world_ubo);
+
+        vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
+        vk::SubmitInfo submitInfo{
+            0, nullptr, nullptr, 1, &(*m_vkTransferCommandBuffers[uboIndex]), 1, &vkTransferSemaphore};
+        GetDevice()->GetQueue(1, 0).submit(submitInfo, vk::Fence());
+    }
 
     void RaytracingScene::RenderScene(const vkfw_core::VKWindow*) {}
 
@@ -182,17 +196,28 @@ namespace vkfw_app::scene::rt {
 
     void vkfw_app::scene::rt::RaytracingScene::InitializeShaderBindingTable()
     {
-        const std::uint32_t sbtSize = m_raytracingProperties.shaderGroupBaseAlignment * numShaderGroups;
+        const std::uint32_t sbtSize = m_raytracingProperties.shaderGroupBaseAlignment * shaderGroupCount;
 
         std::vector<std::uint8_t> shaderHandleStorage;
-        shaderHandleStorage.resize(sbtSize);
+        shaderHandleStorage.resize(sbtSize, 0);
 
         m_shaderBindingTable = std::make_unique<vkfw_core::gfx::HostBuffer>(
             GetDevice(), vk::BufferUsageFlagBits::eRayTracingKHR, vk::MemoryPropertyFlagBits::eHostVisible);
 
-        GetDevice()->GetDevice().getRayTracingShaderGroupHandlesKHR(*m_vkPipeline, 0, numShaderGroups,
+        GetDevice()->GetDevice().getRayTracingShaderGroupHandlesKHR(*m_vkPipeline, 0, shaderGroupCount,
                                                                    vk::ArrayProxy<std::uint8_t>(shaderHandleStorage));
-        m_shaderBindingTable->InitializeData(shaderHandleStorage);
+
+        std::vector<std::uint8_t> shaderBindingTable;
+        shaderBindingTable.resize(sbtSize, 0);
+        auto* data = shaderBindingTable.data();
+        // This part is required, as the alignment and handle size may differ
+        for (uint32_t i = 0; i < shaderGroupCount; i++) {
+            memcpy(data, shaderHandleStorage.data() + i * m_raytracingProperties.shaderGroupHandleSize,
+                   m_raytracingProperties.shaderGroupHandleSize);
+            data += m_raytracingProperties.shaderGroupBaseAlignment;
+        }
+
+        m_shaderBindingTable->InitializeData(shaderBindingTable);
     }
 
     void RaytracingScene::InitializeDescriptorSets()
@@ -290,6 +315,8 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::CreateBottomLevelAccelerationStructure()
     {
+        auto numUBOBuffers = GetNumberOfFramebuffers();
+
         // Setup vertices for a single triangle
         struct Vertex
         {
@@ -300,12 +327,9 @@ namespace vkfw_app::scene::rt {
         // Setup indices
         std::vector<uint32_t> indicesRT = {0, 1, 2};
 
-        vkfw_core::gfx::WorldMatrixUBO initialWorldUBO;
-        initialWorldUBO.m_model = glm::mat4{1.0f};
-        initialWorldUBO.m_normalMatrix = glm::mat4{1.0f};
-        CameraMatrixUBO initialCameraUBO;
-        initialCameraUBO.m_viewInverse = glm::inverse(GetCamera()->GetViewMatrix());
-        initialCameraUBO.m_projInverse = glm::inverse(GetCamera()->GetProjMatrix());
+        vkfw_core::gfx::WorldMatrixUBO initialWorldUBO{glm::mat4{1.0f}, glm::mat4{1.0f}};
+        CameraMatrixUBO initialCameraUBO{glm::inverse(GetCamera()->GetViewMatrix()),
+                                         glm::inverse(GetCamera()->GetProjMatrix())};
 
         auto uboSize = m_cameraUBO.GetCompleteSize() + m_worldUBO.GetCompleteSize();
         auto indexBufferOffset = vkfw_core::byteSizeOf(vertices);
@@ -321,12 +345,29 @@ namespace vkfw_app::scene::rt {
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferOffset, indicesRT);
 
         m_worldUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialWorldUBO);
-        m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialCameraUBO);
+        m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset + m_worldUBO.GetCompleteSize(),
+                                   initialCameraUBO);
 
         vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), std::make_pair(0, 0)};
         m_memGroup.FinalizeDeviceGroup();
         m_memGroup.TransferData(transfer);
         transfer.FinishTransfer();
+
+        {
+            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue(1);
+            vk::CommandBufferAllocateInfo cmdBufferallocInfo{*m_transferCmdPool, vk::CommandBufferLevel::ePrimary,
+                                                             static_cast<std::uint32_t>(numUBOBuffers)};
+            m_vkTransferCommandBuffers = GetDevice()->GetDevice().allocateCommandBuffersUnique(cmdBufferallocInfo);
+            for (auto i = 0U; i < numUBOBuffers; ++i) {
+                vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
+                m_vkTransferCommandBuffers[i]->begin(beginInfo);
+
+                m_cameraUBO.FillUploadCmdBuffer<CameraMatrixUBO>(*m_vkTransferCommandBuffers[i], i);
+                m_worldUBO.FillUploadCmdBuffer<vkfw_core::gfx::WorldMatrixUBO>(*m_vkTransferCommandBuffers[i], i);
+
+                m_vkTransferCommandBuffers[i]->end();
+            }
+        }
 
 
         vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress =

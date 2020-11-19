@@ -54,7 +54,7 @@ namespace vkfw_app::scene::rt {
         constexpr static std::uint32_t indexRaygen = 0;
         constexpr static std::uint32_t indexMiss = 1;
         constexpr static std::uint32_t indexClosestHit = 2;
-        constexpr static std::uint32_t numShaderGroups = 3;
+        constexpr static std::uint32_t shaderGroupCount = 3;
 
         void InitializeScene();
         void CreateBottomLevelAccelerationStructure();
@@ -80,6 +80,11 @@ namespace vkfw_app::scene::rt {
         AccelerationStructure m_BLAS;
         /** The top level acceleration structure for the scene. */
         AccelerationStructure m_TLAS;
+
+        /** The command pool for the transfer cmd buffers. */
+        vk::UniqueCommandPool m_transferCmdPool;
+        /** Holds the command buffers for transferring the uniform buffers. */
+        std::vector<vk::UniqueCommandBuffer> m_vkTransferCommandBuffers;
 
         std::unique_ptr<vkfw_core::gfx::HostBuffer> m_shaderBindingTable;
 
