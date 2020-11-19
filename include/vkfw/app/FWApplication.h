@@ -37,8 +37,8 @@ namespace vkfw_app {
         scene::rt::RaytracingScene m_rt_scene;
 
     protected:
-        void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
-        void RenderScene(const vkfw_core::VKWindow* window) override;
-        void RenderGUI(const vkfw_core::VKWindow* window) override;
+        void FrameMove(float time, float elapsed, vkfw_core::VKWindow* window) override;
+        void RenderScene(vkfw_core::VKWindow* window) override;
+        void RenderGUI(vkfw_core::VKWindow* window) override;
     };
 }

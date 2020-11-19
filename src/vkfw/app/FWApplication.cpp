@@ -52,7 +52,7 @@ namespace vkfw_app {
         GetWindow(0)->UpdatePrimaryCommandBuffers([](const vk::CommandBuffer&, std::size_t) {});
     }
 
-    void FWApplication::FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window)
+    void FWApplication::FrameMove(float time, float elapsed, vkfw_core::VKWindow* window)
     {
         if (window != GetWindow(0)) return;
 
@@ -60,13 +60,13 @@ namespace vkfw_app {
         m_rt_scene.FrameMove(time, elapsed, window);
     }
 
-    void FWApplication::RenderScene(const vkfw_core::VKWindow* window)
+    void FWApplication::RenderScene(vkfw_core::VKWindow* window)
     {
         m_simple_scene.RenderScene(window);
         m_rt_scene.RenderScene(window);
     }
 
-    void FWApplication::RenderGUI(const vkfw_core::VKWindow* )
+    void FWApplication::RenderGUI(vkfw_core::VKWindow* window)
     {
         static bool show_demo_window = true;
         ImGui::ShowDemoWindow(&show_demo_window);
