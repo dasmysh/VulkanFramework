@@ -57,11 +57,13 @@ namespace vkfw_app {
         if (window != GetWindow(0)) return;
 
         m_simple_scene.FrameMove(time, elapsed, window);
+        m_rt_scene.FrameMove(time, elapsed, window);
     }
 
     void FWApplication::RenderScene(const vkfw_core::VKWindow* window)
     {
         m_simple_scene.RenderScene(window);
+        m_rt_scene.RenderScene(window);
     }
 
     void FWApplication::RenderGUI(const vkfw_core::VKWindow* )

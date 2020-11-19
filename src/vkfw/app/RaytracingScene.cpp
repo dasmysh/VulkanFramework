@@ -130,7 +130,8 @@ namespace vkfw_app::scene::rt {
         vk::StridedBufferRegionKHR callableShaderSTBEntry{};
 
         cmdBuffer.traceRaysKHR(raygenShaderSBTEntry, missShaderSBTEntry, hitShaderSBTEntry, callableShaderSTBEntry,
-                               m_storageImage->GetSize().x, m_storageImage->GetSize().y, m_storageImage->GetSize().z);
+                               m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
+                               m_storageImage->GetPixelSize().z);
 
         // Prepare current swapchain image as transfer destination
         window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
@@ -165,7 +166,6 @@ namespace vkfw_app::scene::rt {
 
         m_storageImage = std::make_unique<vkfw_core::gfx::DeviceTexture>(GetDevice(), storageTexDesc);
         m_storageImage->InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
-        m_storageImage->InitializeImageView();
 
         {
             vk::FenceCreateInfo fenceInfo;
