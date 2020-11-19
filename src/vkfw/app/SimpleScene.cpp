@@ -96,14 +96,13 @@ namespace vkfw_app::scene::simple {
         renderList.Render(cmdBuffer);
     }
 
-    void SimpleScene::FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window)
+    void SimpleScene::FrameMove(float time, float, const vkfw_core::VKWindow* window)
     {
         CameraMatrixUBO camera_ubo;
         vkfw_core::gfx::WorldMatrixUBO world_ubo;
         world_ubo.m_model = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         world_ubo.m_normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.m_model)));
         m_planesWorldMatrix = world_ubo.m_model;
-        GetCamera()->UpdateCamera(elapsed, window);
         camera_ubo.m_view = GetCamera()->GetViewMatrix();
         camera_ubo.m_proj = GetCamera()->GetProjMatrix();
 

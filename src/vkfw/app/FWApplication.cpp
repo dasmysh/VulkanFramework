@@ -58,6 +58,7 @@ namespace vkfw_app {
 
         m_simple_scene.FrameMove(time, elapsed, window);
         m_rt_scene.FrameMove(time, elapsed, window);
+        m_camera->UpdateCamera(elapsed, window);
     }
 
     void FWApplication::RenderScene(vkfw_core::VKWindow* window)
