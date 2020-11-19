@@ -33,6 +33,7 @@ namespace vkfw_app {
         /** The camera model used. */
         std::unique_ptr<vkfw_core::gfx::UserControlledCamera> m_camera;
 
+        int m_scene_to_render = 1;
         scene::simple::SimpleScene m_simple_scene;
         scene::rt::RaytracingScene m_rt_scene;
 

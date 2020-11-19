@@ -56,21 +56,41 @@ namespace vkfw_app {
     {
         if (window != GetWindow(0)) return;
 
-        m_simple_scene.FrameMove(time, elapsed, window);
-        m_rt_scene.FrameMove(time, elapsed, window);
         m_camera->UpdateCamera(elapsed, window);
+
+        switch (m_scene_to_render) {
+        case 0: m_simple_scene.FrameMove(time, elapsed, window); break;
+        case 1: m_rt_scene.FrameMove(time, elapsed, window); break;
+        default: break;
+        }
     }
 
     void FWApplication::RenderScene(vkfw_core::VKWindow* window)
     {
-        m_simple_scene.RenderScene(window);
-        m_rt_scene.RenderScene(window);
+        switch (m_scene_to_render) {
+        case 0: m_simple_scene.RenderScene(window); break;
+        case 1: m_rt_scene.RenderScene(window); break;
+        default: break;
+        }
     }
 
     void FWApplication::RenderGUI(vkfw_core::VKWindow* window)
     {
         static bool show_demo_window = true;
         ImGui::ShowDemoWindow(&show_demo_window);
+
+
+        ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(220, 90), ImGuiCond_Always);
+        if (ImGui::Begin("Render Control")) {
+            bool changed = false;
+            if (ImGui::RadioButton("Render Simple Scene", &m_scene_to_render, 0)) changed = true;
+            if (ImGui::RadioButton("Render RayTracing Scene", &m_scene_to_render, 1)) changed = true;
+            if (changed) {
+                window->ForceResizeEvent();
+            }
+        }
+        ImGui::End();
     }
 
     bool FWApplication::HandleKeyboard(int key, int scancode, int action, int mods, vkfw_core::VKWindow* sender)
@@ -96,14 +116,19 @@ namespace vkfw_app {
         m_simple_scene.CreatePipeline(screenSize, window);
         m_rt_scene.CreatePipeline(screenSize, window);
 
-        window->UpdatePrimaryCommandBuffers([this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex)
-        {
-            m_rt_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
-
-            // window->BeginSwapchainRenderPass(cmdBufferIndex);
-            // m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
-            // window->EndSwapchainRenderPass(cmdBufferIndex);
-        });
+        window->UpdatePrimaryCommandBuffers(
+            [this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
+                switch (m_scene_to_render) {
+                case 0: {
+                    window->BeginSwapchainRenderPass(cmdBufferIndex);
+                    m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
+                    window->EndSwapchainRenderPass(cmdBufferIndex);
+                    break;
+                }
+                case 1: m_rt_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window); break;
+                default: break;
+                }
+            });
     }
 
 }
