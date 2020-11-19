@@ -108,7 +108,7 @@ namespace vkfw_app::scene::rt {
         // TODO: do we need to update the storage image? [11/18/2020 Sebastian Maisch]
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipeline);
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, *m_vkDescriptorSet,
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, m_vkDescriptorSet,
                                      nullptr);
         m_cameraUBO.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 1, cmdBufferIndex);
 
@@ -230,17 +230,17 @@ namespace vkfw_app::scene::rt {
 
         vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{*m_vkDescriptorPool, 1, &*m_vkDescriptorSetLayout};
         m_vkDescriptorSet =
-            std::move(GetDevice()->GetDevice().allocateDescriptorSetsUnique(descriptorSetAllocateInfo)[0]);
+            std::move(GetDevice()->GetDevice().allocateDescriptorSets(descriptorSetAllocateInfo)[0]);
 
         vk::WriteDescriptorSetAccelerationStructureKHR descriptorSetAccStructure{1, &*m_TLAS.as};
-        vk::WriteDescriptorSet accStructureWrite{*m_vkDescriptorSet, 0, 0, 1,
+        vk::WriteDescriptorSet accStructureWrite{m_vkDescriptorSet, 0, 0, 1,
                                                  vk::DescriptorType::eAccelerationStructureKHR};
         accStructureWrite.setPNext(&descriptorSetAccStructure);
 
         vk::DescriptorImageInfo storageImageDesc{vk::Sampler{}, m_storageImage->GetImageView(),
                                                  vk::ImageLayout::eGeneral};
 
-        vk::WriteDescriptorSet resultImageWrite{*m_vkDescriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage,
+        vk::WriteDescriptorSet resultImageWrite{m_vkDescriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage,
                                                 &storageImageDesc};
         vk::WriteDescriptorSet uboWrite;
         m_cameraUBO.FillDescriptorSetWrite(uboWrite);

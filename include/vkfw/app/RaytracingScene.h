@@ -99,7 +99,7 @@ namespace vkfw_app::scene::rt {
         /** The descriptor pool. */
         vk::UniqueDescriptorPool m_vkDescriptorPool;
         /** The descriptor set. */
-        vk::UniqueDescriptorSet m_vkDescriptorSet;
+        vk::DescriptorSet m_vkDescriptorSet;
 
         /** Holds the shaders used for raytracing. */
         std::vector<std::shared_ptr<vkfw_core::gfx::Shader>> m_shaders;
