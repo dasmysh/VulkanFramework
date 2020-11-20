@@ -11,6 +11,7 @@
 #include "app/Scene.h"
 
 #include <gfx/vk/UniformBufferObject.h>
+#include <gfx/vk/rt/AccelerationStructureGeometry.h>
 
 #include <glm/mat4x4.hpp>
 
@@ -42,44 +43,30 @@ namespace vkfw_app::scene::rt {
         void RenderScene(const vkfw_core::VKWindow* window) override;
 
     private:
-        void InitializeRayTracingPipeline();
-
-        struct AccelerationStructure
-        {
-            vk::UniqueAccelerationStructureKHR as;
-            vk::UniqueDeviceMemory memory;
-            vk::DeviceAddress handle = 0;
-        };
-
         constexpr static std::uint32_t indexRaygen = 0;
         constexpr static std::uint32_t indexMiss = 1;
         constexpr static std::uint32_t indexClosestHit = 2;
         constexpr static std::uint32_t shaderGroupCount = 3;
 
         void InitializeScene();
-        void CreateBottomLevelAccelerationStructure();
-        void CreateTopLevelAccelerationStructure();
+        void InitializeDescriptorSets();
+
+        // void CreateBottomLevelAccelerationStructure();
+        // void CreateTopLevelAccelerationStructure();
+
         void InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window);
+        void FillDescriptorSets();
 
         void InitializeShaderBindingTable();
-        void InitializeDescriptorSets();
-        AccelerationStructure CreateAS(const vk::AccelerationStructureCreateInfoKHR& info);
-        std::unique_ptr<vkfw_core::gfx::DeviceBuffer> CreateASScratchBuffer(AccelerationStructure& as);
 
         /** The raytracing properties for the selected device. */
         vk::PhysicalDeviceRayTracingPropertiesKHR m_raytracingProperties;
-        /** The raytracing features of the selected device. */
-        vk::PhysicalDeviceRayTracingFeaturesKHR m_raytracingFeatures;
         /** Holds the memory for the world and camera UBOs. */
         vkfw_core::gfx::MemoryGroup m_memGroup;
         /** The uniform buffer object for the camera matrices. */
         vkfw_core::gfx::UniformBufferObject m_cameraUBO;
-        /** The uniform buffer object for the world matrices. */
-        vkfw_core::gfx::UniformBufferObject m_worldUBO;
-        /** The bottom level acceleration structure for the scene. */
-        AccelerationStructure m_BLAS;
-        /** The top level acceleration structure for the scene. */
-        AccelerationStructure m_TLAS;
+        /** The acceleration structure. */
+        vkfw_core::gfx::rt::AccelerationStructureGeometry m_asGeometry;
 
         /** The command pool for the transfer cmd buffers. */
         vk::UniqueCommandPool m_transferCmdPool;
@@ -92,8 +79,6 @@ namespace vkfw_app::scene::rt {
         std::unique_ptr<vkfw_core::gfx::DeviceTexture> m_storageImage;
         /** The image to store raytracing results. */
         vk::UniqueImage m_vkStorageImage;
-        /** Memory for the storage image. */
-        // std::unique_ptr<vkfw_core::gfx::DeviceMemory> m_storageImageMemory;
         /** The image view to store raytracing results. */
         vk::UniqueImageView m_vkStorageImageView;
 
