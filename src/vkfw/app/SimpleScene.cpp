@@ -128,13 +128,11 @@ namespace vkfw_app::scene::simple {
 
         auto numUBOBuffers = GetNumberOfFramebuffers();
 
-        CameraMatrixUBO initialCameraUBO;
+        CameraMatrixUBO initialCameraUBO{GetCamera()->GetViewMatrix(), GetCamera()->GetProjMatrix()};
         vkfw_core::gfx::WorldMatrixUBO initialWorldUBO;
         initialWorldUBO.m_model =
             glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.m_normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.m_model)));
-        initialCameraUBO.m_view = GetCamera()->GetViewMatrix();
-        initialCameraUBO.m_proj = GetCamera()->GetProjMatrix();
 
         std::vector<glm::vec3> planesPoints;
         for (const auto& v : m_vertices) planesPoints.push_back(v.m_position);

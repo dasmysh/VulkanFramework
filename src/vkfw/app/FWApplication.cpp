@@ -113,8 +113,11 @@ namespace vkfw_app {
         // TODO: maybe use lambdas to register for resize events...
         if (window != GetWindow(0)) return;
 
-        m_simple_scene.CreatePipeline(screenSize, window);
-        m_rt_scene.CreatePipeline(screenSize, window);
+        switch (m_scene_to_render) {
+        case 0: m_simple_scene.CreatePipeline(screenSize, window); break;
+        case 1: m_rt_scene.CreatePipeline(screenSize, window); break;
+        default: break;
+        }
 
         window->UpdatePrimaryCommandBuffers(
             [this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
