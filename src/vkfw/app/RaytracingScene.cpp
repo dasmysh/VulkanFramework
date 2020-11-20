@@ -57,14 +57,18 @@ namespace vkfw_app::scene::rt {
         };
         std::vector<Vertex> vertices = {{1.0f, 1.0f, 0.0f}, {-1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
         std::vector<Vertex> vertices2 = {{1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f}};
+        vk::TransformMatrixKHR transform2 = std::array{std::array<float, 4>{1.0f, 0.0f, 0.0f, 0.5f},
+                                                       std::array<float, 4>{0.0f, 1.0f, 0.0f, 0.0f},
+                                                       std::array<float, 4>{0.0f, 0.0f, 1.0f, 0.0f}};
 
         // Setup indices
         std::vector<uint32_t> indicesRT = {0, 1, 2};
         auto indexBufferOffset = vkfw_core::byteSizeOf(vertices);
         auto vertexBuffer2Offset = indexBufferOffset + vkfw_core::byteSizeOf(indicesRT);
         auto indexBuffer2Offset = vertexBuffer2Offset + vkfw_core::byteSizeOf(vertices2);
+        auto transformBuffer2Offset = indexBuffer2Offset + vkfw_core::byteSizeOf(indicesRT);
         auto uniformDataOffset =
-            GetDevice()->CalculateUniformBufferAlignment(indexBuffer2Offset + vkfw_core::byteSizeOf(indicesRT));
+            GetDevice()->CalculateUniformBufferAlignment(transformBuffer2Offset + sizeof(vk::TransformMatrixKHR));
         auto completeBufferSize = uniformDataOffset + uboSize;
         auto completeBufferIdx = m_memGroup.AddBufferToGroup(
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
@@ -75,6 +79,7 @@ namespace vkfw_app::scene::rt {
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferOffset, indicesRT);
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, vertexBuffer2Offset, vertices2);
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBuffer2Offset, indicesRT);
+        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, transformBuffer2Offset, sizeof(vk::TransformMatrixKHR), &transform2);
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialCameraUBO);
 
@@ -107,12 +112,14 @@ namespace vkfw_app::scene::rt {
                                                                    + vertexBuffer2Offset};
         vk::DeviceOrHostAddressConstKHR indexBuffer2DeviceAddress{vertexBufferDeviceAddress.deviceAddress
                                                                   + indexBuffer2Offset};
+        vk::DeviceOrHostAddressConstKHR transform2DeviceAddress{vertexBufferDeviceAddress.deviceAddress
+                                                                  + transformBuffer2Offset};
 
         m_asGeometry.AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
                                          indexBufferDeviceAddress);
 
         m_asGeometry.AddTriangleGeometry(1, vertices2.size(), sizeof(Vertex), vertexBuffer2DeviceAddress,
-                                         indexBuffer2DeviceAddress);
+                                         indexBuffer2DeviceAddress, transform2DeviceAddress);
 
         m_asGeometry.InitializeAccelerationStructure();
     }
