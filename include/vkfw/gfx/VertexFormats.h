@@ -37,4 +37,18 @@ namespace vkfw_app {
     {
         SimpleMaterial(const vkfw_core::gfx::Material&) {}
     };
+
+    struct RayTracingVertex
+    {
+        glm::vec3 m_position;
+        glm::vec3 m_normal;
+        glm::vec2 m_texCoord;
+        glm::vec3 m_color;
+
+        RayTracingVertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec3& color, const glm::vec2& texCoord)
+            : m_position{position}, m_normal{normal}, m_color{color}, m_texCoord{texCoord} {};
+        RayTracingVertex(const vkfw_core::gfx::MeshInfo* mi, std::size_t index);
+        static vk::VertexInputBindingDescription m_bindingDescription;
+        static std::array<vk::VertexInputAttributeDescription, 4> m_attributeDescriptions;
+    };
 }

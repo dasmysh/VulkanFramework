@@ -17,9 +17,9 @@
 
 namespace vkfw_core::gfx {
     class Shader;
-    // class DeviceMemory;
     class DeviceTexture;
     class DeviceBuffer;
+    class AssImpScene;
 }
 
 namespace vkfw_app::scene::rt {
@@ -97,5 +97,8 @@ namespace vkfw_app::scene::rt {
         std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_shaderGroups;
         /** The raytracing pipeline. */
         vk::UniquePipeline m_vkPipeline;
+
+        /** Holds the AssImp demo model. */
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_meshInfo;
     };
 }

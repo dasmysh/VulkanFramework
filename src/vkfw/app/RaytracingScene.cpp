@@ -10,13 +10,14 @@
 
 #include <app/VKWindow.h>
 #include <core/resources/ShaderManager.h>
-#include <gfx/meshes/Mesh.h>
+#include <gfx/meshes/AssImpScene.h>
 #include <gfx/vk/CommandBuffers.h>
 #include <gfx/vk/Framebuffer.h>
 #include <gfx/vk/LogicalDevice.h>
 #include <gfx/vk/QueuedDeviceTransfer.h>
 #include <gfx/vk/memory/DeviceMemory.h>
 #include <gfx/camera/UserControlledCamera.h>
+#include <gfx/VertexFormats.h>
 #include <glm/gtc/matrix_inverse.hpp>
 
 #undef MemoryBarrier
@@ -56,19 +57,24 @@ namespace vkfw_app::scene::rt {
             float pos[3];
         };
         std::vector<Vertex> vertices = {{1.0f, 1.0f, 0.0f}, {-1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
-        std::vector<Vertex> vertices2 = {{1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f}};
-        vk::TransformMatrixKHR transform2 = std::array{std::array<float, 4>{1.0f, 0.0f, 0.0f, 0.5f},
-                                                       std::array<float, 4>{0.0f, 1.0f, 0.0f, 0.0f},
-                                                       std::array<float, 4>{0.0f, 0.0f, 1.0f, 0.0f}};
-
         // Setup indices
         std::vector<uint32_t> indicesRT = {0, 1, 2};
+
+        m_meshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", GetDevice());
+        std::vector<RayTracingVertex> verticesMesh;
+        m_meshInfo->GetVertices(verticesMesh);
+        auto& indicesMesh = static_cast<const vkfw_core::gfx::MeshInfo*>(m_meshInfo.get())->GetIndices();
+
+        glm::mat4 worldMatrixMesh = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
+        glm::mat3x4 transformMesh = glm::transpose(worldMatrixMesh);
+
         auto indexBufferOffset = vkfw_core::byteSizeOf(vertices);
-        auto vertexBuffer2Offset = indexBufferOffset + vkfw_core::byteSizeOf(indicesRT);
-        auto indexBuffer2Offset = vertexBuffer2Offset + vkfw_core::byteSizeOf(vertices2);
-        auto transformBuffer2Offset = indexBuffer2Offset + vkfw_core::byteSizeOf(indicesRT);
+        auto vertexBufferMeshOffset = indexBufferOffset + vkfw_core::byteSizeOf(indicesRT);
+        auto indexBufferMeshOffset = vertexBufferMeshOffset + vkfw_core::byteSizeOf(verticesMesh);
+        // this is not documented but it seems this memory needs the same alignment as uniform buffers.
+        auto transformBufferMeshOffset = GetDevice()->CalculateUniformBufferAlignment(indexBufferMeshOffset + vkfw_core::byteSizeOf(indicesMesh));
         auto uniformDataOffset =
-            GetDevice()->CalculateUniformBufferAlignment(transformBuffer2Offset + sizeof(vk::TransformMatrixKHR));
+            GetDevice()->CalculateUniformBufferAlignment(transformBufferMeshOffset + sizeof(vk::TransformMatrixKHR));
         auto completeBufferSize = uniformDataOffset + uboSize;
         auto completeBufferIdx = m_memGroup.AddBufferToGroup(
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
@@ -77,9 +83,10 @@ namespace vkfw_app::scene::rt {
 
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, 0, vertices);
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferOffset, indicesRT);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, vertexBuffer2Offset, vertices2);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBuffer2Offset, indicesRT);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, transformBuffer2Offset, sizeof(vk::TransformMatrixKHR), &transform2);
+        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, vertexBufferMeshOffset, verticesMesh);
+        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferMeshOffset, indicesMesh);
+        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, transformBufferMeshOffset, sizeof(glm::mat3x4),
+                                          &transformMesh);
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialCameraUBO);
 
@@ -108,18 +115,19 @@ namespace vkfw_app::scene::rt {
         vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress{vertexBufferDeviceAddress.deviceAddress
                                                                  + indexBufferOffset};
 
-        vk::DeviceOrHostAddressConstKHR vertexBuffer2DeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                   + vertexBuffer2Offset};
-        vk::DeviceOrHostAddressConstKHR indexBuffer2DeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                  + indexBuffer2Offset};
-        vk::DeviceOrHostAddressConstKHR transform2DeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                  + transformBuffer2Offset};
+        vk::DeviceOrHostAddressConstKHR vertexBufferMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
+                                                                   + vertexBufferMeshOffset};
+        vk::DeviceOrHostAddressConstKHR indexBufferMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
+                                                                  + indexBufferMeshOffset};
+        vk::DeviceOrHostAddressConstKHR transformMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
+                                                                  + transformBufferMeshOffset};
 
         m_asGeometry.AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
                                          indexBufferDeviceAddress);
 
-        m_asGeometry.AddTriangleGeometry(1, vertices2.size(), sizeof(Vertex), vertexBuffer2DeviceAddress,
-                                         indexBuffer2DeviceAddress, transform2DeviceAddress);
+        m_asGeometry.AddTriangleGeometry(indicesMesh.size() / 3, verticesMesh.size(), sizeof(RayTracingVertex),
+                                         vertexBufferMeshDeviceAddress, indexBufferMeshDeviceAddress,
+                                         transformMeshDeviceAddress);
 
         m_asGeometry.InitializeAccelerationStructure();
     }
