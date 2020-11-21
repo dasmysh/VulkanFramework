@@ -33,12 +33,6 @@ namespace vkfw_app::scene::rt {
               vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())},
           m_asGeometry{GetDevice()}
     {
-        auto properties =
-            GetDevice()
-                ->GetPhysicalDevice()
-                .getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesKHR>();
-        m_raytracingProperties = properties.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
-
         InitializeScene();
         InitializeDescriptorSets();
     }
@@ -264,7 +258,7 @@ namespace vkfw_app::scene::rt {
 
     void vkfw_app::scene::rt::RaytracingScene::InitializeShaderBindingTable()
     {
-        const std::uint32_t sbtSize = m_raytracingProperties.shaderGroupBaseAlignment * shaderGroupCount;
+        const std::uint32_t sbtSize = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment * shaderGroupCount;
 
         std::vector<std::uint8_t> shaderHandleStorage;
         shaderHandleStorage.resize(sbtSize, 0);
@@ -278,11 +272,14 @@ namespace vkfw_app::scene::rt {
         std::vector<std::uint8_t> shaderBindingTable;
         shaderBindingTable.resize(sbtSize, 0);
         auto* data = shaderBindingTable.data();
-        // This part is required, as the alignment and handle size may differ
-        for (uint32_t i = 0; i < shaderGroupCount; i++) {
-            memcpy(data, shaderHandleStorage.data() + i * m_raytracingProperties.shaderGroupHandleSize,
-                   m_raytracingProperties.shaderGroupHandleSize);
-            data += m_raytracingProperties.shaderGroupBaseAlignment;
+        {
+            auto shaderGroupHandleSize = GetDevice()->GetDeviceRayTracingProperties().shaderGroupHandleSize;
+            auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment;
+            // This part is required, as the alignment and handle size may differ
+            for (uint32_t i = 0; i < shaderGroupCount; i++) {
+                memcpy(data, shaderHandleStorage.data() + i * shaderGroupHandleSize, shaderGroupHandleSize);
+                data += shaderGroupBaseAlignment;
+            }
         }
 
         m_shaderBindingTable->InitializeData(shaderBindingTable);
@@ -291,27 +288,24 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
                                               vkfw_core::VKWindow* window)
     {
-        // TODO: do we need to update the storage image? [11/18/2020 Sebastian Maisch]
+        auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment;
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, m_vkDescriptorSet,
                                      nullptr);
         m_cameraUBO.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 1, cmdBufferIndex);
 
-        vk::DeviceSize shaderBindingTableSize = m_raytracingProperties.shaderGroupBaseAlignment * m_shaderGroups.size();
+        vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
 
         vk::StridedBufferRegionKHR raygenShaderSBTEntry{
-            m_shaderBindingTable->GetBuffer(),
-            static_cast<vk::DeviceSize>(m_raytracingProperties.shaderGroupBaseAlignment * indexRaygen),
-            m_raytracingProperties.shaderGroupBaseAlignment, shaderBindingTableSize};
-        vk::StridedBufferRegionKHR missShaderSBTEntry{
-            m_shaderBindingTable->GetBuffer(),
-            static_cast<vk::DeviceSize>(m_raytracingProperties.shaderGroupBaseAlignment * indexMiss),
-            m_raytracingProperties.shaderGroupBaseAlignment, shaderBindingTableSize};
+            m_shaderBindingTable->GetBuffer(), static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexRaygen),
+            shaderGroupBaseAlignment, shaderBindingTableSize};
+        vk::StridedBufferRegionKHR missShaderSBTEntry{m_shaderBindingTable->GetBuffer(),
+                                                      static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexMiss),
+                                                      shaderGroupBaseAlignment, shaderBindingTableSize};
         vk::StridedBufferRegionKHR hitShaderSBTEntry{
-            m_shaderBindingTable->GetBuffer(),
-            static_cast<vk::DeviceSize>(m_raytracingProperties.shaderGroupBaseAlignment * indexClosestHit),
-            m_raytracingProperties.shaderGroupBaseAlignment, shaderBindingTableSize};
+            m_shaderBindingTable->GetBuffer(), static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexClosestHit),
+            shaderGroupBaseAlignment, shaderBindingTableSize};
 
         vk::StridedBufferRegionKHR callableShaderSTBEntry{};
 

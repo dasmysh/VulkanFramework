@@ -59,8 +59,6 @@ namespace vkfw_app::scene::rt {
 
         void InitializeShaderBindingTable();
 
-        /** The raytracing properties for the selected device. */
-        vk::PhysicalDeviceRayTracingPropertiesKHR m_raytracingProperties;
         /** Holds the memory for the world and camera UBOs. */
         vkfw_core::gfx::MemoryGroup m_memGroup;
         /** The uniform buffer object for the camera matrices. */
