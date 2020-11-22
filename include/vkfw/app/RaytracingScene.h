@@ -53,15 +53,6 @@ namespace vkfw_app::scene::rt {
         void InitializeScene();
         void InitializeDescriptorSets();
 
-        void AddMeshNodeGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
-                                 const vkfw_core::gfx::SceneMeshNode* node,
-                                 vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
-                                 vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress);
-        void AddSubMeshGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
-                                const vkfw_core::gfx::SubMesh& subMesh,
-                                vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
-                                vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress);
-
         void InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window);
         void FillDescriptorSets();
 
@@ -83,10 +74,6 @@ namespace vkfw_app::scene::rt {
 
         /** The texture to store raytracing results. */
         std::unique_ptr<vkfw_core::gfx::DeviceTexture> m_storageImage;
-        /** The image to store raytracing results. */
-        vk::UniqueImage m_vkStorageImage;
-        /** The image view to store raytracing results. */
-        vk::UniqueImageView m_vkStorageImageView;
 
         /** Holds the descriptor set layouts for the raytracing pipeline. */
         vk::UniqueDescriptorSetLayout m_vkDescriptorSetLayout;

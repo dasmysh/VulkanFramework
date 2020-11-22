@@ -55,20 +55,14 @@ namespace vkfw_app::scene::rt {
         std::vector<uint32_t> indicesRT = {0, 1, 2};
 
         m_meshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", GetDevice());
-        std::vector<RayTracingVertex> verticesMesh;
-        m_meshInfo->GetVertices(verticesMesh);
-        auto& indicesMesh = static_cast<const vkfw_core::gfx::MeshInfo*>(m_meshInfo.get())->GetIndices();
 
         glm::mat4 worldMatrixMesh = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
-        glm::mat3x4 transformMesh = glm::transpose(worldMatrixMesh);
 
         auto indexBufferOffset = vkfw_core::byteSizeOf(vertices);
-        auto vertexBufferMeshOffset = indexBufferOffset + vkfw_core::byteSizeOf(indicesRT);
-        auto indexBufferMeshOffset = vertexBufferMeshOffset + vkfw_core::byteSizeOf(verticesMesh);
         // this is not documented but it seems this memory needs the same alignment as uniform buffers.
-        auto transformBufferMeshOffset = GetDevice()->CalculateUniformBufferAlignment(indexBufferMeshOffset + vkfw_core::byteSizeOf(indicesMesh));
+        // auto transformBufferMeshOffset = GetDevice()->CalculateUniformBufferAlignment(indexBufferMeshOffset + vkfw_core::byteSizeOf(indicesMesh));
         auto uniformDataOffset =
-            GetDevice()->CalculateUniformBufferAlignment(transformBufferMeshOffset + sizeof(vk::TransformMatrixKHR));
+            GetDevice()->CalculateUniformBufferAlignment(indexBufferOffset + vkfw_core::byteSizeOf(indicesRT));
         auto completeBufferSize = uniformDataOffset + uboSize;
         auto completeBufferIdx = m_memGroup.AddBufferToGroup(
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
@@ -77,10 +71,6 @@ namespace vkfw_app::scene::rt {
 
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, 0, vertices);
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferOffset, indicesRT);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, vertexBufferMeshOffset, verticesMesh);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferMeshOffset, indicesMesh);
-        m_memGroup.AddDataToBufferInGroup(completeBufferIdx, transformBufferMeshOffset, sizeof(glm::mat3x4),
-                                          &transformMesh);
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialCameraUBO);
 
@@ -109,47 +99,13 @@ namespace vkfw_app::scene::rt {
         vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress{vertexBufferDeviceAddress.deviceAddress
                                                                  + indexBufferOffset};
 
-        vk::DeviceOrHostAddressConstKHR vertexBufferMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                   + vertexBufferMeshOffset};
-        vk::DeviceOrHostAddressConstKHR indexBufferMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                  + indexBufferMeshOffset};
-        vk::DeviceOrHostAddressConstKHR transformMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                  + transformBufferMeshOffset};
-
         auto blasIndexTriangle = m_asGeometry.AddBottomLevelAccelerationStructure(glm::mat3x4{1.0f});
         m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexTriangle)
-            .AddTriangleGeometry(
-            1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress, indexBufferDeviceAddress);
-
-        auto blasIndexMesh = m_asGeometry.AddBottomLevelAccelerationStructure(transformMesh);
-        AddMeshNodeGeometry(m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexMesh), m_meshInfo->GetRootNode(),
-                            vertexBufferMeshDeviceAddress, indexBufferMeshDeviceAddress);
+            .AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
+                                 indexBufferDeviceAddress);
+        m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
 
         m_asGeometry.BuildAccelerationStructure();
-    }
-
-    void RaytracingScene::AddMeshNodeGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
-                                              const vkfw_core::gfx::SceneMeshNode* node,
-                                              vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
-                                              vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress)
-    {
-        for (unsigned int i = 0; i < node->GetNumberOfSubMeshes(); ++i) {
-            AddSubMeshGeometry(blas, m_meshInfo->GetSubMeshes()[node->GetSubMeshID(i)], vertexBufferDeviceAddress, indexBufferDeviceAddress);
-        }
-        for (unsigned int i = 0; i < node->GetNumberOfNodes(); ++i) {
-            AddMeshNodeGeometry(blas, node->GetChild(i), vertexBufferDeviceAddress, indexBufferDeviceAddress);
-        }
-    }
-
-    void RaytracingScene::AddSubMeshGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
-                                             const vkfw_core::gfx::SubMesh& subMesh,
-                                             vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
-                                             vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress)
-    {
-        vk::DeviceOrHostAddressConstKHR indexBufferAddress{indexBufferDeviceAddress.deviceAddress
-                                                           + subMesh.GetIndexOffset() * sizeof(std::uint32_t)};
-        blas.AddTriangleGeometry(subMesh.GetNumberOfTriangles(), subMesh.GetNumberOfIndices(), sizeof(RayTracingVertex),
-                                 vertexBufferDeviceAddress, indexBufferAddress);
     }
 
     void RaytracingScene::InitializeDescriptorSets()
