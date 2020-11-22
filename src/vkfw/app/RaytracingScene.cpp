@@ -116,14 +116,40 @@ namespace vkfw_app::scene::rt {
         vk::DeviceOrHostAddressConstKHR transformMeshDeviceAddress{vertexBufferDeviceAddress.deviceAddress
                                                                   + transformBufferMeshOffset};
 
-        m_asGeometry.AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
-                                         indexBufferDeviceAddress);
+        auto blasIndexTriangle = m_asGeometry.AddBottomLevelAccelerationStructure(glm::mat3x4{1.0f});
+        m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexTriangle)
+            .AddTriangleGeometry(
+            1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress, indexBufferDeviceAddress);
 
-        m_asGeometry.AddTriangleGeometry(indicesMesh.size() / 3, verticesMesh.size(), sizeof(RayTracingVertex),
-                                         vertexBufferMeshDeviceAddress, indexBufferMeshDeviceAddress,
-                                         transformMeshDeviceAddress);
+        auto blasIndexMesh = m_asGeometry.AddBottomLevelAccelerationStructure(transformMesh);
+        AddMeshNodeGeometry(m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexMesh), m_meshInfo->GetRootNode(),
+                            vertexBufferMeshDeviceAddress, indexBufferMeshDeviceAddress);
 
-        m_asGeometry.InitializeAccelerationStructure();
+        m_asGeometry.BuildAccelerationStructure();
+    }
+
+    void RaytracingScene::AddMeshNodeGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
+                                              const vkfw_core::gfx::SceneMeshNode* node,
+                                              vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
+                                              vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress)
+    {
+        for (unsigned int i = 0; i < node->GetNumberOfSubMeshes(); ++i) {
+            AddSubMeshGeometry(blas, m_meshInfo->GetSubMeshes()[node->GetSubMeshID(i)], vertexBufferDeviceAddress, indexBufferDeviceAddress);
+        }
+        for (unsigned int i = 0; i < node->GetNumberOfNodes(); ++i) {
+            AddMeshNodeGeometry(blas, node->GetChild(i), vertexBufferDeviceAddress, indexBufferDeviceAddress);
+        }
+    }
+
+    void RaytracingScene::AddSubMeshGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
+                                             const vkfw_core::gfx::SubMesh& subMesh,
+                                             vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
+                                             vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress)
+    {
+        vk::DeviceOrHostAddressConstKHR indexBufferAddress{indexBufferDeviceAddress.deviceAddress
+                                                           + subMesh.GetIndexOffset() * sizeof(std::uint32_t)};
+        blas.AddTriangleGeometry(subMesh.GetNumberOfTriangles(), subMesh.GetNumberOfIndices(), sizeof(RayTracingVertex),
+                                 vertexBufferDeviceAddress, indexBufferAddress);
     }
 
     void RaytracingScene::InitializeDescriptorSets()

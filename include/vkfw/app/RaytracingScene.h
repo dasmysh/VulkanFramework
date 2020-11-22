@@ -20,6 +20,8 @@ namespace vkfw_core::gfx {
     class DeviceTexture;
     class DeviceBuffer;
     class AssImpScene;
+    class SceneMeshNode;
+    class SubMesh;
 }
 
 namespace vkfw_app::scene::rt {
@@ -51,8 +53,14 @@ namespace vkfw_app::scene::rt {
         void InitializeScene();
         void InitializeDescriptorSets();
 
-        // void CreateBottomLevelAccelerationStructure();
-        // void CreateTopLevelAccelerationStructure();
+        void AddMeshNodeGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
+                                 const vkfw_core::gfx::SceneMeshNode* node,
+                                 vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
+                                 vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress);
+        void AddSubMeshGeometry(vkfw_core::gfx::rt::BottomLevelAccelerationStructure& blas,
+                                const vkfw_core::gfx::SubMesh& subMesh,
+                                vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress,
+                                vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress);
 
         void InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window);
         void FillDescriptorSets();
