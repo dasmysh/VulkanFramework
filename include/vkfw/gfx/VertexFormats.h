@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <glm/vec4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan.hpp>
@@ -43,9 +44,9 @@ namespace vkfw_app {
         glm::vec3 m_position;
         glm::vec3 m_normal;
         glm::vec2 m_texCoord;
-        glm::vec3 m_color;
+        glm::vec4 m_color;
 
-        RayTracingVertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec3& color, const glm::vec2& texCoord)
+        RayTracingVertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec4& color, const glm::vec2& texCoord)
             : m_position{position}, m_normal{normal}, m_color{color}, m_texCoord{texCoord} {};
         RayTracingVertex(const vkfw_core::gfx::MeshInfo* mi, std::size_t index);
         static vk::VertexInputBindingDescription m_bindingDescription;
