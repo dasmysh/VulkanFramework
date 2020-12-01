@@ -103,8 +103,12 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexTriangle)
             .AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
                                  indexBufferDeviceAddress);
-        m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
-        m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
+
+        m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
+        m_asGeometry.FinalizeMeshGeometry();
+
+        // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
+        // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
 
         m_asGeometry.BuildAccelerationStructure();
     }
