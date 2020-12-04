@@ -12,6 +12,7 @@
 
 #include <gfx/vk/UniformBufferObject.h>
 #include <gfx/vk/rt/AccelerationStructureGeometry.h>
+#include <gfx/vk/pipeline/DescriptorSetLayout.h>
 
 #include <glm/mat4x4.hpp>
 
@@ -76,7 +77,7 @@ namespace vkfw_app::scene::rt {
         std::unique_ptr<vkfw_core::gfx::DeviceTexture> m_storageImage;
 
         /** Holds the descriptor set layouts for the raytracing pipeline. */
-        vk::UniqueDescriptorSetLayout m_vkDescriptorSetLayout;
+        vkfw_core::gfx::DescriptorSetLayout m_descriptorSetLayout;
         /** Holds the pipeline layout for raytracing. */
         vk::UniquePipelineLayout m_vkPipelineLayout;
         /** The descriptor pool. */

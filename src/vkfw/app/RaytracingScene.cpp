@@ -115,33 +115,30 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeDescriptorSets()
     {
-        std::vector<vk::DescriptorPoolSize> poolSizes = {{vk::DescriptorType::eAccelerationStructureKHR, 1},
-                                                         {vk::DescriptorType::eStorageImage, 1},
-                                                         {vk::DescriptorType::eUniformBufferDynamic, 1}};
-        vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{
-            vk::DescriptorPoolCreateFlags{}, 2, static_cast<std::uint32_t>(poolSizes.size()), poolSizes.data()};
-        m_vkDescriptorPool = GetDevice()->GetDevice().createDescriptorPoolUnique(descriptorPoolCreateInfo);
+        using AccelerationStructureGeometry = vkfw_core::gfx::rt::AccelerationStructureGeometry;
+        using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
+        using Texture = vkfw_core::gfx::Texture;
+        AccelerationStructureGeometry::AddDescriptorLayoutBinding(m_descriptorSetLayout,
+                                                                  vk::ShaderStageFlagBits::eRaygenKHR, 0);
+        Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage,
+                                            vk::ShaderStageFlagBits::eRaygenKHR, 1);
+        UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR,
+                                                        true, 2);
+        // TODO: create classes for storage buffers.
+        m_descriptorSetLayout.AddBinding(3, vk::DescriptorType::eStorageBuffer, 1,
+                                         vk::ShaderStageFlagBits::eClosestHitKHR);
+        m_descriptorSetLayout.AddBinding(4, vk::DescriptorType::eStorageBuffer, 1,
+                                         vk::ShaderStageFlagBits::eClosestHitKHR);
+        auto descLayout = m_descriptorSetLayout.CreateDescriptorLayout(GetDevice());
 
-        vk::DescriptorSetLayoutBinding asLayoutBinding;
-        m_asGeometry.FillDescriptorLayoutBinding(asLayoutBinding, vk::ShaderStageFlagBits::eRaygenKHR, 0);
-        vk::DescriptorSetLayoutBinding resultImageLayoutBinding{1, vk::DescriptorType::eStorageImage, 1,
-                                                                vk::ShaderStageFlagBits::eRaygenKHR};
-        std::vector<vk::DescriptorSetLayoutBinding> bindings{asLayoutBinding, resultImageLayoutBinding};
+        m_vkDescriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice());
 
-        vk::DescriptorSetLayoutCreateInfo layoutInfo{vk::DescriptorSetLayoutCreateFlags{},
-                                                     static_cast<std::uint32_t>(bindings.size()), bindings.data()};
-        m_vkDescriptorSetLayout = GetDevice()->GetDevice().createDescriptorSetLayoutUnique(layoutInfo);
-
-        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{*m_vkDescriptorPool, 1, &*m_vkDescriptorSetLayout};
+        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{*m_vkDescriptorPool, 1, &descLayout};
         m_vkDescriptorSet = std::move(GetDevice()->GetDevice().allocateDescriptorSets(descriptorSetAllocateInfo)[0]);
-        m_asGeometry.UseDescriptorSet(m_vkDescriptorSet, m_vkDescriptorSetLayout.get(), 0);
-
-        m_cameraUBO.CreateLayout(*m_vkDescriptorPool, vk::ShaderStageFlagBits::eRaygenKHR, true, 0);
 
         {
-            std::array<vk::DescriptorSetLayout, 2> pipelineDescSets;
-            pipelineDescSets[0] = *m_vkDescriptorSetLayout;
-            pipelineDescSets[1] = m_cameraUBO.GetDescriptorLayout();
+            std::vector<vk::DescriptorSetLayout> pipelineDescSets;
+            pipelineDescSets.emplace_back(descLayout);
 
             vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{vk::PipelineLayoutCreateFlags{},
                                                                   static_cast<std::uint32_t>(pipelineDescSets.size()),
@@ -228,19 +225,23 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::FillDescriptorSets()
     {
-        vk::WriteDescriptorSet accStructureWrite;
-        m_asGeometry.FillDescriptorSetWrite(accStructureWrite);
+        std::vector<vk::WriteDescriptorSet> descSetWrites;
+        descSetWrites.resize(3);
+        vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
+        std::vector<vk::DescriptorBufferInfo> bufferInfos;
+        bufferInfos.resize(3);
+        vk::DescriptorImageInfo storageImageDesc;
 
-        vk::DescriptorImageInfo storageImageDesc{vk::Sampler{}, m_storageImage->GetImageView(),
-                                                 vk::ImageLayout::eGeneral};
+        m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
+        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 0, &descSetAccStructure);
 
-        vk::WriteDescriptorSet resultImageWrite{m_vkDescriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage,
-                                                &storageImageDesc};
-        vk::WriteDescriptorSet uboWrite;
-        m_cameraUBO.FillDescriptorSetWrite(uboWrite);
+        m_storageImage->FillDescriptorImageInfo(storageImageDesc, vk::Sampler{});
+        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 1, &storageImageDesc);
 
-        GetDevice()->GetDevice().updateDescriptorSets(
-            vk::ArrayProxy<const vk::WriteDescriptorSet>{accStructureWrite, resultImageWrite, uboWrite}, nullptr);
+        m_cameraUBO.FillDescriptorBufferInfo(bufferInfos[0]);
+        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &bufferInfos[0]);
+
+        GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
     }
 
     void vkfw_app::scene::rt::RaytracingScene::InitializeShaderBindingTable()
@@ -279,8 +280,7 @@ namespace vkfw_app::scene::rt {
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, m_vkDescriptorSet,
-                                     nullptr);
-        m_cameraUBO.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 1, cmdBufferIndex);
+                                     static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
 
         vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
 
@@ -330,3 +330,4 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::RenderScene(const vkfw_core::VKWindow*) {}
 
 }
+;

@@ -13,7 +13,7 @@
 #include <gfx/meshes/Mesh.h>
 #include <gfx/meshes/AssImpScene.h>
 #include <gfx/vk/QueuedDeviceTransfer.h>
-#include <gfx/vk/GraphicsPipeline.h>
+#include <gfx/vk/pipeline/GraphicsPipeline.h>
 #include <app/VKWindow.h>
 #include <gfx/renderer/RenderList.h>
 
@@ -52,12 +52,12 @@ namespace vkfw_app::scene::simple {
         // TODO: like this the shaders will be recompiled on each resize. [3/26/2017 Sebastian Maisch]
         // maybe set viewport as dynamic...
         m_demoPipeline = window->GetDevice().CreateGraphicsPipeline(
-            std::vector<std::string>{"simple.vert", "simple.frag"}, screenSize, 1);
+            std::vector<std::string>{"shader/mesh/mesh.vert", "shader/mesh/mesh.frag"}, screenSize, 1);
         m_demoPipeline->ResetVertexInput<SimpleVertex>();
         m_demoPipeline->CreatePipeline(true, window->GetRenderPass(), 0, *m_vkPipelineLayout);
 
         m_demoTransparentPipeline = window->GetDevice().CreateGraphicsPipeline(
-            std::vector<std::string>{"simple_transparent.vert", "simple_transparent.frag"}, screenSize, 1);
+            std::vector<std::string>{"shader/simple_transparent.vert", "shader/simple_transparent.frag"}, screenSize, 1);
         m_demoTransparentPipeline->ResetVertexInput<SimpleVertex>();
         m_demoTransparentPipeline->GetRasterizer().cullMode = vk::CullModeFlagBits::eNone;
         m_demoTransparentPipeline->GetColorBlendAttachment(0).blendEnable = VK_TRUE;
@@ -79,7 +79,9 @@ namespace vkfw_app::scene::simple {
         using DescSetBinding = vkfw_core::gfx::RenderElement::DescSetBinding;
         vk::DeviceSize offset = 0;
 
-        vkfw_core::gfx::RenderList renderList{GetCamera(), UBOBinding{&m_cameraUBO, 3, cmdBufferIndex}};
+        vkfw_core::gfx::RenderList renderList{
+            GetCamera(), UBOBinding{m_vkCameraMatrixDescriptorSet, 2,
+                                    static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize())}};
         renderList.SetCurrentPipeline(*m_vkPipelineLayout, m_demoPipeline->GetPipeline(),
                                       m_demoTransparentPipeline->GetPipeline());
 
@@ -88,8 +90,9 @@ namespace vkfw_app::scene::simple {
                                                     GetCamera()->GetViewMatrix(), planesWorldAABB);
         re.BindVertexBuffer(BufferReference{m_memGroup.GetBuffer(m_completeBufferIdx), offset});
         re.BindIndexBuffer(BufferReference{m_memGroup.GetBuffer(m_completeBufferIdx), vkfw_core::byteSizeOf(m_vertices)});
-        re.BindWorldMatricesUBO(UBOBinding{&m_worldUBO, 0, cmdBufferIndex});
-        re.BindDescriptorSet(DescSetBinding{m_vkImageSamplerDescritorSet, 2});
+        re.BindWorldMatricesUBO(UBOBinding{m_vkWorldMatrixDescriptorSet, 0,
+                                           static_cast<std::uint32_t>(cmdBufferIndex * m_worldUBO.GetInstanceSize())});
+        re.BindDescriptorSet(DescSetBinding{m_vkImageSamplerDescriptorSet, 1});
 
         m_mesh->GetDrawElements(m_meshWorldMatrix, *GetCamera(), cmdBufferIndex, renderList);
 
@@ -205,29 +208,53 @@ namespace vkfw_app::scene::simple {
 
     void SimpleScene::InitializeDescriptorSets()
     {
-        auto numUBOBuffers = GetNumberOfFramebuffers();
-        m_mesh->CreateDescriptorSets(numUBOBuffers);
+        using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
+        using Texture = vkfw_core::gfx::Texture;
+        UniformBufferObject::AddDescriptorLayoutBinding(m_cameraMatrixDescriptorSetLayout,
+                                                        vk::ShaderStageFlagBits::eVertex, true, 0);
+        UniformBufferObject::AddDescriptorLayoutBinding(m_worldMatrixDescriptorSetLayout,
+                                                        vk::ShaderStageFlagBits::eVertex, true, 0);
+        Texture::AddDescriptorLayoutBinding(m_imageSamplerDescriptorSetLayout,
+                                            vk::DescriptorType::eCombinedImageSampler,
+                                            vk::ShaderStageFlagBits::eFragment, 0);
+
 
         {
-            std::array<vk::DescriptorPoolSize, 2> descSetPoolSizes;
-            descSetPoolSizes[0] = vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 1};
-            descSetPoolSizes[1] = vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 2};
-            vk::DescriptorPoolCreateInfo descSetPoolInfo{vk::DescriptorPoolCreateFlags(), 3,
-                                                         static_cast<std::uint32_t>(descSetPoolSizes.size()),
-                                                         descSetPoolSizes.data()};
-            m_vkUBODescriptorPool = GetDevice()->GetDevice().createDescriptorPoolUnique(descSetPoolInfo);
+            std::vector<vk::DescriptorPoolSize> descSetPoolSizes;
+            std::size_t descSetCount = 0;
+            m_mesh->AddDescriptorPoolSizes(descSetPoolSizes, descSetCount);
+            m_cameraMatrixDescriptorSetLayout.AddDescriptorPoolSizes(descSetPoolSizes, 1);
+            descSetCount += 1;
+            m_worldMatrixDescriptorSetLayout.AddDescriptorPoolSizes(descSetPoolSizes, 1);
+            descSetCount += 1;
+            m_imageSamplerDescriptorSetLayout.AddDescriptorPoolSizes(descSetPoolSizes, 1);
+            descSetCount += 1;
+
+            m_vkDescriptorPool =
+                vkfw_core::gfx::DescriptorSetLayout::CreateDescriptorPool(GetDevice(), descSetPoolSizes, descSetCount);
         }
 
-        m_cameraUBO.CreateLayout(*m_vkUBODescriptorPool, vk::ShaderStageFlagBits::eVertex, true, 0);
-        m_worldUBO.UseLayout(*m_vkUBODescriptorPool, m_mesh->GetWorldMatricesDescriptorLayout(), true, 0);
-        m_vkImageSampleDescriptorSetLayout = m_mesh->GetMaterialTexturesDescriptorLayout();
+        m_mesh->CreateDescriptorSets(m_vkDescriptorPool.get());
+
+        auto cameraDescSetLayout = m_cameraMatrixDescriptorSetLayout.CreateDescriptorLayout(GetDevice());
+        auto worldDescSetLayout = m_worldMatrixDescriptorSetLayout.CreateDescriptorLayout(GetDevice());
+        auto materialDescSetLayout = m_mesh->GetMaterialDescriptorLayout().GetDescriptorLayout();
+
+        std::vector<vk::DescriptorSetLayout> descSetsLayouts = {cameraDescSetLayout, worldDescSetLayout,
+                                                                materialDescSetLayout};
+        vk::DescriptorSetAllocateInfo descSetsAllocInfo{
+            m_vkDescriptorPool.get(), static_cast<std::uint32_t>(descSetsLayouts.size()), descSetsLayouts.data()};
+        auto descSets = GetDevice()->GetDevice().allocateDescriptorSets(descSetsAllocInfo);
+
+        m_vkCameraMatrixDescriptorSet = descSets[0];
+        m_vkWorldMatrixDescriptorSet = descSets[1];
+        m_vkImageSamplerDescriptorSet = descSets[2];
 
         {
-            std::array<vk::DescriptorSetLayout, 4> pipelineDescSets;
-            pipelineDescSets[0] = m_worldUBO.GetDescriptorLayout();
-            pipelineDescSets[1] = m_mesh->GetMaterialBufferDescriptorLayout();
-            pipelineDescSets[2] = m_vkImageSampleDescriptorSetLayout;
-            pipelineDescSets[3] = m_cameraUBO.GetDescriptorLayout();
+            std::array<vk::DescriptorSetLayout, 3> pipelineDescSets;
+            pipelineDescSets[0] = worldDescSetLayout;
+            pipelineDescSets[1] = materialDescSetLayout;
+            pipelineDescSets[2] = cameraDescSetLayout;
 
             vk::PipelineLayoutCreateInfo pipelineLayoutInfo{vk::PipelineLayoutCreateFlags(),
                                                             static_cast<std::uint32_t>(pipelineDescSets.size()),
@@ -236,21 +263,19 @@ namespace vkfw_app::scene::simple {
         }
 
         {
-            vk::DescriptorSetAllocateInfo descSetAllocInfo{*m_vkUBODescriptorPool, 1,
-                                                           &m_vkImageSampleDescriptorSetLayout};
-            m_vkImageSamplerDescritorSet = GetDevice()->GetDevice().allocateDescriptorSets(descSetAllocInfo)[0];
-        }
-
-        {
             std::vector<vk::WriteDescriptorSet> descSetWrites;
-            descSetWrites.reserve(3);
-            vk::DescriptorImageInfo descImageInfo{*m_vkDemoSampler, m_demoTexture->GetTexture().GetImageView(),
-                                                  vk::ImageLayout::eShaderReadOnlyOptimal};
-            descSetWrites.emplace_back(m_vkImageSamplerDescritorSet, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler,
-                                       &descImageInfo);
+            descSetWrites.resize(3);
+            std::array<vk::DescriptorBufferInfo, 2> descBufferInfos;
+            vk::DescriptorImageInfo descImageInfo;
 
-            m_worldUBO.FillDescriptorSetWrite(descSetWrites.emplace_back());
-            m_cameraUBO.FillDescriptorSetWrite(descSetWrites.emplace_back());
+            m_worldUBO.FillDescriptorBufferInfo(descBufferInfos[0]);
+            descSetWrites[0] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_vkWorldMatrixDescriptorSet, 0, &descBufferInfos[0]);
+
+            m_demoTexture->GetTexture().FillDescriptorImageInfo(descImageInfo, m_vkDemoSampler.get());
+            descSetWrites[1] = m_imageSamplerDescriptorSetLayout.MakeWrite(m_vkImageSamplerDescriptorSet, 0, &descImageInfo);
+
+            m_cameraUBO.FillDescriptorBufferInfo(descBufferInfos[1]);
+            descSetWrites[2] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_vkCameraMatrixDescriptorSet, 0, &descBufferInfos[1]);
 
             GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
         }

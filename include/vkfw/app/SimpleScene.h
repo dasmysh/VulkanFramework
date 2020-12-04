@@ -11,9 +11,10 @@
 #include "app/Scene.h"
 #include "gfx/VertexFormats.h"
 
-#include <core/math/primitives.h>
-#include <gfx/vk/memory/MemoryGroup.h>
 #include <gfx/vk/UniformBufferObject.h>
+#include <gfx/vk/memory/MemoryGroup.h>
+#include <gfx/vk/pipeline/DescriptorSetLayout.h>
+#include <core/math/primitives.h>
 
 #include <glm/mat4x4.hpp>
 
@@ -21,6 +22,7 @@
 #include <vector>
 
 namespace vkfw_core::gfx {
+    class DescriptorSetLayout;
     class GraphicsPipeline;
     class AssImpScene;
     class Mesh;
@@ -52,13 +54,17 @@ namespace vkfw_app::scene::simple {
         void InitializeDescriptorSets();
 
         /** Holds the descriptor set layouts for the demo pipeline. */
-        vk::DescriptorSetLayout m_vkImageSampleDescriptorSetLayout;
+        vkfw_core::gfx::DescriptorSetLayout m_cameraMatrixDescriptorSetLayout;
+        vkfw_core::gfx::DescriptorSetLayout m_worldMatrixDescriptorSetLayout;
+        vkfw_core::gfx::DescriptorSetLayout m_imageSamplerDescriptorSetLayout;
         /** Holds the pipeline layout for demo rendering. */
         vk::UniquePipelineLayout m_vkPipelineLayout;
         /** Holds the descriptor pool for the UBO binding. */
-        vk::UniqueDescriptorPool m_vkUBODescriptorPool;
-        /** Holds the descriptor set for the image/sampler binding. */
-        vk::DescriptorSet m_vkImageSamplerDescritorSet;
+        vk::UniqueDescriptorPool m_vkDescriptorPool;
+        /** Holds the descriptor sets. */
+        vk::DescriptorSet m_vkCameraMatrixDescriptorSet;
+        vk::DescriptorSet m_vkWorldMatrixDescriptorSet;
+        vk::DescriptorSet m_vkImageSamplerDescriptorSet;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vkfw_core::gfx::GraphicsPipeline> m_demoPipeline;
         /** Holds the graphics pipeline for transparent demo rendering. */
