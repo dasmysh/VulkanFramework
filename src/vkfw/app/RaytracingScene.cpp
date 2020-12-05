@@ -94,15 +94,8 @@ namespace vkfw_app::scene::rt {
             }
         }
 
-        vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress =
-            m_memGroup.GetBuffer(completeBufferIdx)->GetDeviceAddressConst();
-        vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress{vertexBufferDeviceAddress.deviceAddress
-                                                                 + indexBufferOffset};
-
         auto blasIndexTriangle = m_asGeometry.AddBottomLevelAccelerationStructure(glm::mat3x4{1.0f});
-        m_asGeometry.GetBottomLevelAccelerationStructure(blasIndexTriangle)
-            .AddTriangleGeometry(1, vertices.size(), sizeof(Vertex), vertexBufferDeviceAddress,
-                                 indexBufferDeviceAddress);
+        m_asGeometry.AddTriangleGeometryToBLAS(blasIndexTriangle, 1, vertices.size(), sizeof(Vertex), m_memGroup.GetBuffer(completeBufferIdx));
 
         m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
         m_asGeometry.FinalizeMeshGeometry();
@@ -115,20 +108,14 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeDescriptorSets()
     {
-        using AccelerationStructureGeometry = vkfw_core::gfx::rt::AccelerationStructureGeometry;
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        AccelerationStructureGeometry::AddDescriptorLayoutBinding(m_descriptorSetLayout,
-                                                                  vk::ShaderStageFlagBits::eRaygenKHR, 0);
+        m_asGeometry.AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0, 3, 4);
         Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage,
                                             vk::ShaderStageFlagBits::eRaygenKHR, 1);
         UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR,
                                                         true, 2);
-        // TODO: create classes for storage buffers.
-        m_descriptorSetLayout.AddBinding(3, vk::DescriptorType::eStorageBuffer, 1,
-                                         vk::ShaderStageFlagBits::eClosestHitKHR);
-        m_descriptorSetLayout.AddBinding(4, vk::DescriptorType::eStorageBuffer, 1,
-                                         vk::ShaderStageFlagBits::eClosestHitKHR);
+
         auto descLayout = m_descriptorSetLayout.CreateDescriptorLayout(GetDevice());
 
         m_vkDescriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice());
@@ -228,9 +215,10 @@ namespace vkfw_app::scene::rt {
         std::vector<vk::WriteDescriptorSet> descSetWrites;
         descSetWrites.resize(3);
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
-        std::vector<vk::DescriptorBufferInfo> bufferInfos;
-        bufferInfos.resize(3);
+        vk::DescriptorBufferInfo camrraBufferInfo;
         vk::DescriptorImageInfo storageImageDesc;
+        std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
+        std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
         descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 0, &descSetAccStructure);
@@ -238,8 +226,10 @@ namespace vkfw_app::scene::rt {
         m_storageImage->FillDescriptorImageInfo(storageImageDesc, vk::Sampler{});
         descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 1, &storageImageDesc);
 
-        m_cameraUBO.FillDescriptorBufferInfo(bufferInfos[0]);
-        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &bufferInfos[0]);
+        m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
+        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &camrraBufferInfo);
+
+        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos);
 
         GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
     }
