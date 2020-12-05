@@ -58,7 +58,7 @@ namespace vkfw_app::scene::rt {
 
         glm::mat4 worldMatrixMesh = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
 
-        auto indexBufferOffset = vkfw_core::byteSizeOf(vertices);
+        auto indexBufferOffset = GetDevice()->CalculateStorageBufferAlignment(vkfw_core::byteSizeOf(vertices));
         // this is not documented but it seems this memory needs the same alignment as uniform buffers.
         // auto transformBufferMeshOffset = GetDevice()->CalculateUniformBufferAlignment(indexBufferMeshOffset + vkfw_core::byteSizeOf(indicesMesh));
         auto uniformDataOffset =
@@ -66,7 +66,8 @@ namespace vkfw_app::scene::rt {
         auto completeBufferSize = uniformDataOffset + uboSize;
         auto completeBufferIdx = m_memGroup.AddBufferToGroup(
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
-                | vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eUniformBuffer
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             completeBufferSize, std::vector<std::uint32_t>{{0, 1}});
 
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, 0, vertices);
@@ -213,7 +214,7 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::FillDescriptorSets()
     {
         std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(3);
+        descSetWrites.resize(5);
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
         vk::DescriptorBufferInfo camrraBufferInfo;
         vk::DescriptorImageInfo storageImageDesc;
@@ -230,6 +231,8 @@ namespace vkfw_app::scene::rt {
         descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &camrraBufferInfo);
 
         m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos);
+        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 3, vboBufferInfos.data());
+        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 4, iboBufferInfos.data());
 
         GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
     }
