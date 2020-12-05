@@ -95,8 +95,8 @@ namespace vkfw_app::scene::rt {
             }
         }
 
-        auto blasIndexTriangle = m_asGeometry.AddBottomLevelAccelerationStructure(glm::mat3x4{1.0f});
-        m_asGeometry.AddTriangleGeometryToBLAS(blasIndexTriangle, 1, vertices.size(), sizeof(Vertex), m_memGroup.GetBuffer(completeBufferIdx));
+        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, 1, vertices.size(), sizeof(Vertex),
+                                         m_memGroup.GetBuffer(completeBufferIdx));
 
         m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
         m_asGeometry.FinalizeMeshGeometry();
