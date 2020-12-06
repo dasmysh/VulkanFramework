@@ -99,7 +99,7 @@ namespace vkfw_app::scene::rt {
                                          m_memGroup.GetBuffer(completeBufferIdx));
 
         m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
-        m_asGeometry.FinalizeMeshGeometry();
+        m_asGeometry.FinalizeGeometry();
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
@@ -111,7 +111,8 @@ namespace vkfw_app::scene::rt {
     {
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        m_asGeometry.AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0, 3, 4);
+        m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0);
+        m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR, 3, 4, 5);
         Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage,
                                             vk::ShaderStageFlagBits::eRaygenKHR, 1);
         UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR,
@@ -214,12 +215,13 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::FillDescriptorSets()
     {
         std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(5);
+        descSetWrites.resize(6);
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
         vk::DescriptorBufferInfo camrraBufferInfo;
         vk::DescriptorImageInfo storageImageDesc;
         std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
         std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
+        vk::DescriptorBufferInfo instanceBufferInfo;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
         descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 0, &descSetAccStructure);
@@ -230,9 +232,10 @@ namespace vkfw_app::scene::rt {
         m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
         descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &camrraBufferInfo);
 
-        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos);
+        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo);
         descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 3, vboBufferInfos.data());
         descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 4, iboBufferInfos.data());
+        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 5, &instanceBufferInfo);
 
         GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
     }
