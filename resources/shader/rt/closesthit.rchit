@@ -3,7 +3,9 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-layout(location = 0) rayPayloadInEXT vec3 hitValue;
+#include "ray.glsl"
+
+layout(location = 0) rayPayloadInEXT RayPayload hitValue;
 hitAttributeEXT vec2 attribs;
 
 struct Vertex
@@ -30,8 +32,21 @@ layout(scalar, binding = 5, set = 0) buffer InstanceInfos { InstanceDesc i[]; } 
 
 void main()
 {
+    if (hitValue.done == 1) {
+        hitValue.attenuation = vec3(0.0f);
+        return;
+    }
+
+    const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+    if (gl_InstanceID == 0) {
+        hitValue.attenuation = barycentricCoords;
+        hitValue.done = 1;
+    }
+
     uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;
     uint indexOffset = instances.i[gl_InstanceID].indexOffset;
+    mat4 transform = instances.i[gl_InstanceID].transform;
+    mat4 transformInverseTranspose = instances.i[gl_InstanceID].transformInverseTranspose;
     // uint objId = scnDesc.i[gl_InstanceID].objId;
 
     ivec3 ind = ivec3(indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 0],
@@ -42,9 +57,13 @@ void main()
     Vertex v1 = vertices[nonuniformEXT(bufferIndex)].v[ind.y];
     Vertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
 
-    const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-    vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z;
-    normal = normalize(vec3(vec4(normal, 0.0))); // TODO: transform to world.
 
-    hitValue = normal;
+    vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z;
+    normal = normalize(vec3(transformInverseTranspose * vec4(normal, 0.0)));
+
+    vec3 worldPos = v0.position * barycentricCoords.x + v1.position * barycentricCoords.y + v2.position * barycentricCoords.z;
+    worldPos = vec3(transform * vec4(worldPos, 1.0));
+
+    hitValue.rayOrigin = worldPos;
+    hitValue.rayDirection = normal;
 }

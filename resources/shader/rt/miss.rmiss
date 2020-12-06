@@ -1,9 +1,16 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-layout(location = 0) rayPayloadInEXT vec3 hitValue;
+#include "ray.glsl"
+
+layout(location = 0) rayPayloadInEXT RayPayload hitValue;
 
 void main()
 {
-    hitValue = vec3(0.0, 0.2, 0.2);
+    if (hitValue.done == 1) {
+        hitValue.attenuation = vec3(1.0f);
+    } else {
+        hitValue.attenuation = vec3(0.0, 0.2, 0.2);
+    }
+    hitValue.done = 1;
 }
