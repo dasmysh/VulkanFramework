@@ -89,6 +89,7 @@ target_link_libraries(${APPLICATION_NAME} PRIVATE vk_framework_core)
 add_dependencies(${APPLICATION_NAME} compile_shaders)
 target_include_directories(${APPLICATION_NAME} PUBLIC
     ${PROJECT_SOURCE_DIR}/include/${PROJECT_REL_PATH}
+    ${PROJECT_SOURCE_DIR}/resources
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/extern/imgui/cpp)
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${APPLICATION_NAME})

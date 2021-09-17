@@ -18,6 +18,7 @@ struct Vertex
 
 struct InstanceDesc
 {
+    uint vertexSize;
     uint bufferIndex;
     uint materialIndex;
     uint textureIndex;
@@ -38,9 +39,11 @@ void main()
     }
 
     const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-    if (gl_InstanceID == 0) {
+    uint vertexSize = instances.i[gl_InstanceID].vertexSize;
+    if (vertexSize != 48) {
         hitValue.attenuation = barycentricCoords;
         hitValue.done = 1;
+        return;
     }
 
     uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;

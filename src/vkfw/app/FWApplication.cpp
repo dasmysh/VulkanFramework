@@ -30,12 +30,7 @@ namespace vkfw_app {
 
     void* GetDeviceFeaturesNextChain()
     {
-        static vk::PhysicalDeviceScalarBlockLayoutFeatures enableScalarBlockLayout{VK_TRUE};
-        static vk::PhysicalDeviceDescriptorIndexingFeatures enableIndexingFeatures{};
-        enableIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-        enableIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
-        enableIndexingFeatures.pNext = &enableScalarBlockLayout;
-        return &enableIndexingFeatures;
+        return nullptr;
     }
 
     /**
@@ -46,7 +41,7 @@ namespace vkfw_app {
                           applicationVersion,
                           configFileName,
                           {},
-                          {VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME},
+                          {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME},
                           GetDeviceFeaturesNextChain()},
           m_camera{std::make_unique<vkfw_core::gfx::ArcballCamera>(glm::vec3(2.0f, 2.0f, 2.0f), glm::radians(45.0f),
                                                                    static_cast<float>(GetWindow(0)->GetWidth())

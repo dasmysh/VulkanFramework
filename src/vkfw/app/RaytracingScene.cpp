@@ -20,6 +20,8 @@
 #include <gfx/VertexFormats.h>
 #include <glm/gtc/matrix_inverse.hpp>
 
+#include "shader/rt/ray_tracing_shader_host_interface.h"
+
 #undef MemoryBarrier
 
 namespace vkfw_app::scene::rt {
@@ -67,7 +69,7 @@ namespace vkfw_app::scene::rt {
         auto completeBufferIdx = m_memGroup.AddBufferToGroup(
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
                 | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eUniformBuffer
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
             completeBufferSize, std::vector<std::uint32_t>{{0, 1}});
 
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, 0, vertices);
@@ -111,19 +113,20 @@ namespace vkfw_app::scene::rt {
     {
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0);
-        m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR, 3, 4, 5);
-        Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage,
-                                            vk::ShaderStageFlagBits::eRaygenKHR, 1);
-        UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR,
-                                                        true, 2);
+        using Bindings = ray_tracing::RTBindings;
+
+        m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::AccelerationStructure));
+        m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR, static_cast<uint32_t>(Bindings::Vertices), static_cast<uint32_t>(Bindings::Indices),
+                                                       static_cast<uint32_t>(Bindings::InstanceInfos), static_cast<uint32_t>(Bindings::DiffuseTextures), static_cast<uint32_t>(Bindings::BumpTextures));
+        Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::ResultImage));
+        UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(Bindings::CameraProperties));
 
         auto descLayout = m_descriptorSetLayout.CreateDescriptorLayout(GetDevice());
 
         m_vkDescriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice());
 
         vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{*m_vkDescriptorPool, 1, &descLayout};
-        m_vkDescriptorSet = std::move(GetDevice()->GetDevice().allocateDescriptorSets(descriptorSetAllocateInfo)[0]);
+        m_vkDescriptorSet = GetDevice()->GetDevice().allocateDescriptorSets(descriptorSetAllocateInfo)[0];
 
         {
             std::vector<vk::DescriptorSetLayout> pipelineDescSets;
@@ -169,15 +172,10 @@ namespace vkfw_app::scene::rt {
         m_shaderGroups[indexClosestHit].setIntersectionShader(VK_SHADER_UNUSED_KHR);
 
         vk::PipelineLibraryCreateInfoKHR pipelineLibraryInfo{ 0, nullptr };
-        vk::RayTracingPipelineCreateInfoKHR pipelineInfo{
-            vk::PipelineCreateFlags{}, static_cast<std::uint32_t>(shaderStages.size()),
-            shaderStages.data(),       static_cast<std::uint32_t>(m_shaderGroups.size()),
-            m_shaderGroups.data(),     1,
-            pipelineLibraryInfo,       nullptr,
-            *m_vkPipelineLayout};
+        vk::RayTracingPipelineCreateInfoKHR pipelineInfo{vk::PipelineCreateFlags{}, shaderStages, m_shaderGroups, 1, &pipelineLibraryInfo, nullptr, nullptr, *m_vkPipelineLayout};
 
-        if (auto result =
-                GetDevice()->GetDevice().createRayTracingPipelinesKHRUnique(vk::PipelineCache{}, pipelineInfo);
+        if (auto result = GetDevice()->GetDevice().createRayTracingPipelinesKHRUnique(
+                vk::DeferredOperationKHR{}, vk::PipelineCache{}, pipelineInfo);
             result.result != vk::Result::eSuccess) {
             spdlog::error("Could not create ray tracing pipeline.");
             assert(false);
@@ -214,41 +212,46 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::FillDescriptorSets()
     {
+        using Bindings = ray_tracing::RTBindings;
+
         std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(6);
+        descSetWrites.resize(8);
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
         vk::DescriptorBufferInfo camrraBufferInfo;
         vk::DescriptorImageInfo storageImageDesc;
         std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
         std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
         vk::DescriptorBufferInfo instanceBufferInfo;
+        std::vector<vk::DescriptorImageInfo> diffuseTextureInfos;
+        std::vector<vk::DescriptorImageInfo> bumpTextureInfos;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
-        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 0, &descSetAccStructure);
+        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
 
         m_storageImage->FillDescriptorImageInfo(storageImageDesc, vk::Sampler{});
-        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 1, &storageImageDesc);
+        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
 
         m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
-        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 2, &camrraBufferInfo);
+        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
 
-        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo);
-        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 3, vboBufferInfos.data());
-        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, 4, iboBufferInfos.data());
-        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, 5, &instanceBufferInfo);
+        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, diffuseTextureInfos, bumpTextureInfos);
+        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
+        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
+        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
+        descSetWrites[6] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
+        descSetWrites[7] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
 
         GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
     }
 
     void vkfw_app::scene::rt::RaytracingScene::InitializeShaderBindingTable()
     {
-        const std::uint32_t sbtSize = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment * shaderGroupCount;
+        const std::uint32_t sbtSize = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment * shaderGroupCount;
 
         std::vector<std::uint8_t> shaderHandleStorage;
         shaderHandleStorage.resize(sbtSize, 0);
 
-        m_shaderBindingTable = std::make_unique<vkfw_core::gfx::HostBuffer>(
-            GetDevice(), vk::BufferUsageFlagBits::eRayTracingKHR, vk::MemoryPropertyFlagBits::eHostVisible);
+        m_shaderBindingTable = std::make_unique<vkfw_core::gfx::HostBuffer>(GetDevice(), vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible);
 
         GetDevice()->GetDevice().getRayTracingShaderGroupHandlesKHR(*m_vkPipeline, 0, shaderGroupCount,
                                                                     vk::ArrayProxy<std::uint8_t>(shaderHandleStorage));
@@ -257,8 +260,8 @@ namespace vkfw_app::scene::rt {
         shaderBindingTable.resize(sbtSize, 0);
         auto* data = shaderBindingTable.data();
         {
-            auto shaderGroupHandleSize = GetDevice()->GetDeviceRayTracingProperties().shaderGroupHandleSize;
-            auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment;
+            auto shaderGroupHandleSize = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupHandleSize;
+            auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment;
             // This part is required, as the alignment and handle size may differ
             for (uint32_t i = 0; i < shaderGroupCount; i++) {
                 memcpy(data, shaderHandleStorage.data() + i * shaderGroupHandleSize, shaderGroupHandleSize);
@@ -272,7 +275,7 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
                                               vkfw_core::VKWindow* window)
     {
-        auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingProperties().shaderGroupBaseAlignment;
+        auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment;
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, m_vkDescriptorSet,
@@ -280,17 +283,15 @@ namespace vkfw_app::scene::rt {
 
         vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
 
-        vk::StridedBufferRegionKHR raygenShaderSBTEntry{
-            m_shaderBindingTable->GetBuffer(), static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexRaygen),
-            shaderGroupBaseAlignment, shaderBindingTableSize};
-        vk::StridedBufferRegionKHR missShaderSBTEntry{m_shaderBindingTable->GetBuffer(),
-                                                      static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexMiss),
-                                                      shaderGroupBaseAlignment, shaderBindingTableSize};
-        vk::StridedBufferRegionKHR hitShaderSBTEntry{
-            m_shaderBindingTable->GetBuffer(), static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexClosestHit),
-            shaderGroupBaseAlignment, shaderBindingTableSize};
+        auto sbtDeviceAddress = m_shaderBindingTable->GetDeviceAddress().deviceAddress;
+        auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexRaygen);
+        vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
+        auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexMiss);
+        vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
+        auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexClosestHit);
+        vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
 
-        vk::StridedBufferRegionKHR callableShaderSTBEntry{};
+        vk::StridedDeviceAddressRegionKHR callableShaderSTBEntry{};
 
         cmdBuffer.traceRaysKHR(raygenShaderSBTEntry, missShaderSBTEntry, hitShaderSBTEntry, callableShaderSTBEntry,
                                m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
