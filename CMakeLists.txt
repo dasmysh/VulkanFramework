@@ -28,9 +28,6 @@ endif()
 include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
 conan_basic_setup(TARGETS)
 
-# TODO: do we need this?
-#include(cmake/CompileSpirvShader.cmake)
-
 
 get_filename_component(VKFW_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR} REALPATH)
 set(VKFW_WINDOW_WIDTH "1920" CACHE STRING "Application main window width.")

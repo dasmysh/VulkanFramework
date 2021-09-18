@@ -264,7 +264,7 @@ namespace vkfw_app::scene::rt {
             auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment;
             // This part is required, as the alignment and handle size may differ
             for (uint32_t i = 0; i < shaderGroupCount; i++) {
-                memcpy(data, shaderHandleStorage.data() + i * shaderGroupHandleSize, shaderGroupHandleSize);
+                memcpy(data, shaderHandleStorage.data() + i * static_cast<std::size_t>(shaderGroupHandleSize), shaderGroupHandleSize);
                 data += shaderGroupBaseAlignment;
             }
         }
@@ -284,12 +284,12 @@ namespace vkfw_app::scene::rt {
         vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
 
         auto sbtDeviceAddress = m_shaderBindingTable->GetDeviceAddress().deviceAddress;
-        auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexRaygen);
-        vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
-        auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexMiss);
-        vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
-        auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment * indexClosestHit);
-        vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderGroupBaseAlignment, shaderBindingTableSize};
+        auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexRaygen;
+        vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
+        auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexMiss;
+        vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
+        auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexClosestHit;
+        vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
 
         vk::StridedDeviceAddressRegionKHR callableShaderSTBEntry{};
 
