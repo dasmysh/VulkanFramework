@@ -57,7 +57,7 @@ namespace vkfw_app {
     FWApplication::~FWApplication()
     {
         // remove pipeline from command buffer.
-        GetWindow(0)->UpdatePrimaryCommandBuffers([](const vk::CommandBuffer&, std::size_t) {});
+        GetWindow(0)->UpdatePrimaryCommandBuffers([](const vkfw_core::gfx::CommandBuffer&, std::size_t) {});
     }
 
     void FWApplication::FrameMove(float time, float elapsed, vkfw_core::VKWindow* window)
@@ -128,7 +128,7 @@ namespace vkfw_app {
         }
 
         window->UpdatePrimaryCommandBuffers(
-            [this, window](const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
+            [this, window](const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
                 switch (m_scene_to_render) {
                 case 0: {
                     window->BeginSwapchainRenderPass(cmdBufferIndex);

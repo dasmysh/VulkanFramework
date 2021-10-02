@@ -11,7 +11,7 @@
 #include <app/VKWindow.h>
 #include <core/resources/ShaderManager.h>
 #include <gfx/meshes/AssImpScene.h>
-#include <gfx/vk/CommandBuffers.h>
+#include <gfx/vk/wrappers/CommandBuffer.h>
 #include <gfx/vk/Framebuffer.h>
 #include <gfx/vk/LogicalDevice.h>
 #include <gfx/vk/QueuedDeviceTransfer.h>
@@ -29,11 +29,15 @@ namespace vkfw_app::scene::rt {
     RaytracingScene::RaytracingScene(vkfw_core::gfx::LogicalDevice* t_device,
                                      vkfw_core::gfx::UserControlledCamera* t_camera,
                                      std::size_t t_num_framebuffers)
-        : Scene(t_device, t_camera, t_num_framebuffers),
-          m_memGroup{GetDevice(), vk::MemoryPropertyFlags()},
-          m_cameraUBO{
-              vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())},
-          m_asGeometry{GetDevice()}
+        : Scene(t_device, t_camera, t_num_framebuffers)
+        , m_memGroup{GetDevice(), "RTSceneMemoryGroup", vk::MemoryPropertyFlags()}
+        , m_cameraUBO{
+              vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())}
+        , m_asGeometry{GetDevice(), "RTSceneASGeometry"}
+        , m_descriptorSetLayout{"RTSceneDescriptorSetLayout"}
+        , m_pipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
+        , m_descriptorSet{GetDevice()->GetHandle(), "RTSceneDescriptorSet", vk::DescriptorSet{}}
+        , m_pipeline{GetDevice(), "RTScenePipeline", {}}
     {
         InitializeScene();
         InitializeDescriptorSets();
@@ -66,7 +70,7 @@ namespace vkfw_app::scene::rt {
         auto uniformDataOffset =
             GetDevice()->CalculateUniformBufferAlignment(indexBufferOffset + vkfw_core::byteSizeOf(indicesRT));
         auto completeBufferSize = uniformDataOffset + uboSize;
-        auto completeBufferIdx = m_memGroup.AddBufferToGroup(
+        auto completeBufferIdx = m_memGroup.AddBufferToGroup("RTSceneCompleteBuffer",
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
                 | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eUniformBuffer
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
@@ -77,23 +81,23 @@ namespace vkfw_app::scene::rt {
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, initialCameraUBO);
 
-        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), std::make_pair(0, 0)};
+        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(0, 0)};
         m_memGroup.FinalizeDeviceGroup();
         m_memGroup.TransferData(transfer);
         transfer.FinishTransfer();
 
         {
-            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue(1);
-            vk::CommandBufferAllocateInfo cmdBufferallocInfo{*m_transferCmdPool, vk::CommandBufferLevel::ePrimary,
+            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("RTSceneTransferCommandPool", 1);
+            vk::CommandBufferAllocateInfo cmdBufferallocInfo{m_transferCmdPool.GetHandle(), vk::CommandBufferLevel::ePrimary,
                                                              static_cast<std::uint32_t>(numUBOBuffers)};
-            m_vkTransferCommandBuffers = GetDevice()->GetDevice().allocateCommandBuffersUnique(cmdBufferallocInfo);
+            m_transferCommandBuffers = vkfw_core::gfx::CommandBuffer::Initialize(GetDevice()->GetHandle(), "RTSceneTransferCommandBuffer", GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
-                m_vkTransferCommandBuffers[i]->begin(beginInfo);
+                m_transferCommandBuffers[i].Begin(beginInfo);
 
-                m_cameraUBO.FillUploadCmdBuffer<CameraMatrixUBO>(*m_vkTransferCommandBuffers[i], i);
+                m_cameraUBO.FillUploadCmdBuffer<CameraMatrixUBO>(m_transferCommandBuffers[i], i);
 
-                m_vkTransferCommandBuffers[i]->end();
+                m_transferCommandBuffers[i].End();
             }
         }
 
@@ -123,10 +127,10 @@ namespace vkfw_app::scene::rt {
 
         auto descLayout = m_descriptorSetLayout.CreateDescriptorLayout(GetDevice());
 
-        m_vkDescriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice());
+        m_descriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice(), "RTSceneDescriptorPool");
 
-        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{*m_vkDescriptorPool, 1, &descLayout};
-        m_vkDescriptorSet = GetDevice()->GetDevice().allocateDescriptorSets(descriptorSetAllocateInfo)[0];
+        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{m_descriptorPool.GetHandle(), 1, &descLayout};
+        m_descriptorSet.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().allocateDescriptorSets(descriptorSetAllocateInfo)[0]);
 
         {
             std::vector<vk::DescriptorSetLayout> pipelineDescSets;
@@ -135,55 +139,20 @@ namespace vkfw_app::scene::rt {
             vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{vk::PipelineLayoutCreateFlags{},
                                                                   static_cast<std::uint32_t>(pipelineDescSets.size()),
                                                                   pipelineDescSets.data()};
-            m_vkPipelineLayout = GetDevice()->GetDevice().createPipelineLayoutUnique(pipelineLayoutCreateInfo);
+            m_pipelineLayout.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createPipelineLayoutUnique(pipelineLayoutCreateInfo));
         }
     }
 
     void RaytracingScene::CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window)
     {
+        if (m_pipeline) { return; }
         InitializeStorageImage(screenSize, window);
         FillDescriptorSets();
 
-        m_shaders.resize(3);
-        m_shaders[indexRaygen] = GetDevice()->GetShaderManager()->GetResource("shader/rt/raygen.rgen");
-        m_shaders[indexMiss] = GetDevice()->GetShaderManager()->GetResource("shader/rt/miss.rmiss");
-        m_shaders[indexClosestHit] = GetDevice()->GetShaderManager()->GetResource("shader/rt/closesthit.rchit");
-
-        std::array<vk::PipelineShaderStageCreateInfo, 3> shaderStages;
-        m_shaders[indexRaygen]->FillShaderStageInfo(shaderStages[indexRaygen]);
-        m_shaders[indexMiss]->FillShaderStageInfo(shaderStages[indexMiss]);
-        m_shaders[indexClosestHit]->FillShaderStageInfo(shaderStages[indexClosestHit]);
-
-        m_shaderGroups.resize(shaderGroupCount);
-        m_shaderGroups[indexRaygen].setType(vk::RayTracingShaderGroupTypeKHR::eGeneral);
-        m_shaderGroups[indexRaygen].setGeneralShader(indexRaygen);
-        m_shaderGroups[indexRaygen].setClosestHitShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexRaygen].setAnyHitShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexRaygen].setIntersectionShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexMiss].setType(vk::RayTracingShaderGroupTypeKHR::eGeneral);
-        m_shaderGroups[indexMiss].setGeneralShader(indexMiss);
-        m_shaderGroups[indexMiss].setClosestHitShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexMiss].setAnyHitShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexMiss].setIntersectionShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexClosestHit].setType(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup);
-        m_shaderGroups[indexClosestHit].setGeneralShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexClosestHit].setClosestHitShader(indexClosestHit);
-        m_shaderGroups[indexClosestHit].setAnyHitShader(VK_SHADER_UNUSED_KHR);
-        m_shaderGroups[indexClosestHit].setIntersectionShader(VK_SHADER_UNUSED_KHR);
-
-        vk::PipelineLibraryCreateInfoKHR pipelineLibraryInfo{ 0, nullptr };
-        vk::RayTracingPipelineCreateInfoKHR pipelineInfo{vk::PipelineCreateFlags{}, shaderStages, m_shaderGroups, 1, &pipelineLibraryInfo, nullptr, nullptr, *m_vkPipelineLayout};
-
-        if (auto result = GetDevice()->GetDevice().createRayTracingPipelinesKHRUnique(
-                vk::DeferredOperationKHR{}, vk::PipelineCache{}, pipelineInfo);
-            result.result != vk::Result::eSuccess) {
-            spdlog::error("Could not create ray tracing pipeline.");
-            assert(false);
-        } else {
-            m_vkPipeline = std::move(result.value[0]);
-        }
-
-        InitializeShaderBindingTable();
+        std::vector<std::shared_ptr<vkfw_core::gfx::Shader>> shaders{GetDevice()->GetShaderManager()->GetResource("shader/rt/raygen.rgen"), GetDevice()->GetShaderManager()->GetResource("shader/rt/miss.rmiss"),
+                                                                     GetDevice()->GetShaderManager()->GetResource("shader/rt/closesthit.rchit")};
+        m_pipeline.ResetShaders(std::move(shaders));
+        m_pipeline.CreatePipeline(1, m_pipelineLayout);
     }
 
     void RaytracingScene::InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
@@ -194,15 +163,15 @@ namespace vkfw_app::scene::rt {
         storageTexDesc.m_imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage;
         storageTexDesc.m_memoryProperties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
-        m_storageImage = std::make_unique<vkfw_core::gfx::DeviceTexture>(GetDevice(), storageTexDesc);
+        m_storageImage = std::make_unique<vkfw_core::gfx::DeviceTexture>(GetDevice(), "RTSceneStorageImage", storageTexDesc);
         m_storageImage->InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
 
         {
             vk::FenceCreateInfo fenceInfo;
-            auto fence = GetDevice()->GetDevice().createFenceUnique(fenceInfo);
+            vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "RTSceneImageTransitionFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
             auto cmdBuffer =
-                m_storageImage->TransitionLayout(vk::ImageLayout::eGeneral, std::make_pair(0u, 0u), {}, {}, *fence);
-            if (auto r = GetDevice()->GetDevice().waitForFences({*fence}, VK_TRUE, vkfw_core::defaultFenceTimeout);
+                m_storageImage->TransitionLayout(vk::ImageLayout::eGeneral, GetDevice()->GetQueue(0, 0), {}, {}, fence);
+            if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout);
                 r != vk::Result::eSuccess) {
                 spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");
@@ -226,76 +195,47 @@ namespace vkfw_app::scene::rt {
         std::vector<vk::DescriptorImageInfo> bumpTextureInfos;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
-        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
+        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
 
-        m_storageImage->FillDescriptorImageInfo(storageImageDesc, vk::Sampler{});
-        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
+        m_storageImage->FillDescriptorImageInfo(storageImageDesc, vkfw_core::gfx::Sampler{});
+        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
 
         m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
-        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
+        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
 
         m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, diffuseTextureInfos, bumpTextureInfos);
-        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
-        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
-        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
-        descSetWrites[6] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
-        descSetWrites[7] = m_descriptorSetLayout.MakeWriteArray(m_vkDescriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
+        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
+        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
+        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
+        descSetWrites[6] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
+        descSetWrites[7] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
 
-        GetDevice()->GetDevice().updateDescriptorSets(descSetWrites, nullptr);
+        GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
     }
 
-    void vkfw_app::scene::rt::RaytracingScene::InitializeShaderBindingTable()
-    {
-        const std::uint32_t sbtSize = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment * shaderGroupCount;
-
-        std::vector<std::uint8_t> shaderHandleStorage;
-        shaderHandleStorage.resize(sbtSize, 0);
-
-        m_shaderBindingTable = std::make_unique<vkfw_core::gfx::HostBuffer>(GetDevice(), vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible);
-
-        GetDevice()->GetDevice().getRayTracingShaderGroupHandlesKHR(*m_vkPipeline, 0, shaderGroupCount,
-                                                                    vk::ArrayProxy<std::uint8_t>(shaderHandleStorage));
-
-        std::vector<std::uint8_t> shaderBindingTable;
-        shaderBindingTable.resize(sbtSize, 0);
-        auto* data = shaderBindingTable.data();
-        {
-            auto shaderGroupHandleSize = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupHandleSize;
-            auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment;
-            // This part is required, as the alignment and handle size may differ
-            for (uint32_t i = 0; i < shaderGroupCount; i++) {
-                memcpy(data, shaderHandleStorage.data() + i * static_cast<std::size_t>(shaderGroupHandleSize), shaderGroupHandleSize);
-                data += shaderGroupBaseAlignment;
-            }
-        }
-
-        m_shaderBindingTable->InitializeData(shaderBindingTable);
-    }
-
-    void RaytracingScene::UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
+    void RaytracingScene::UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
                                               vkfw_core::VKWindow* window)
     {
-        auto shaderGroupBaseAlignment = GetDevice()->GetDeviceRayTracingPipelineProperties().shaderGroupBaseAlignment;
+        // auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
-        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipeline);
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, *m_vkPipelineLayout, 0, m_vkDescriptorSet,
-                                     static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+        // cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
+        // cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_descriptorSet.GetHandle(),
+        //                              static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
 
-        vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
+        // vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
+        //
+        // auto sbtDeviceAddress = m_shaderBindingTable->GetDeviceAddress().deviceAddress;
+        // auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexRaygen;
+        // vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
+        // auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexMiss;
+        // vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
+        // auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexClosestHit;
+        // vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
+        //
+        // vk::StridedDeviceAddressRegionKHR callableShaderSTBEntry{};
 
-        auto sbtDeviceAddress = m_shaderBindingTable->GetDeviceAddress().deviceAddress;
-        auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexRaygen;
-        vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-        auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexMiss;
-        vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-        auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexClosestHit;
-        vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-
-        vk::StridedDeviceAddressRegionKHR callableShaderSTBEntry{};
-
-        cmdBuffer.traceRaysKHR(raygenShaderSBTEntry, missShaderSBTEntry, hitShaderSBTEntry, callableShaderSTBEntry,
-                               m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
-                               m_storageImage->GetPixelSize().z);
+        // cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
+        //                                    m_storageImage->GetPixelSize().z);
 
         // Prepare current swapchain image as transfer destination
         window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
@@ -318,10 +258,14 @@ namespace vkfw_app::scene::rt {
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         m_cameraUBO.UpdateInstanceData(uboIndex, camera_ubo);
 
-        vk::Semaphore vkTransferSemaphore = window->GetDataAvailableSemaphore();
-        vk::SubmitInfo submitInfo{
-            0, nullptr, nullptr, 1, &(*m_vkTransferCommandBuffers[uboIndex]), 1, &vkTransferSemaphore};
-        GetDevice()->GetQueue(1, 0).submit(submitInfo, vk::Fence());
+        const auto& transferQueue = GetDevice()->GetQueue(1, 0);
+        {
+            QUEUE_REGION(transferQueue, "FrameMove");
+            auto& transferSemaphore = window->GetDataAvailableSemaphore();
+            vk::SubmitInfo submitInfo{0, nullptr, nullptr, 1, m_transferCommandBuffers[uboIndex].GetHandlePtr(), 1, transferSemaphore.GetHandlePtr()};
+            transferQueue.Submit(submitInfo, vkfw_core::gfx::Fence{});
+
+        }
     }
 
     void RaytracingScene::RenderScene(const vkfw_core::VKWindow*) {}

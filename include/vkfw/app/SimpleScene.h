@@ -14,6 +14,11 @@
 #include <gfx/vk/UniformBufferObject.h>
 #include <gfx/vk/memory/MemoryGroup.h>
 #include <gfx/vk/pipeline/DescriptorSetLayout.h>
+#include <gfx/vk/wrappers/CommandPool.h>
+#include <gfx/vk/wrappers/Sampler.h>
+#include <gfx/vk/wrappers/DescriptorSet.h>
+#include <gfx/vk/wrappers/DescriptorPool.h>
+#include <gfx/vk/wrappers/PipelineLayout.h>
 #include <core/math/primitives.h>
 
 #include <glm/mat4x4.hpp>
@@ -44,7 +49,7 @@ namespace vkfw_app::scene::simple {
         ~SimpleScene();
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
-        void UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
+        void UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
                                  vkfw_core::VKWindow* window) override;
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
@@ -58,13 +63,13 @@ namespace vkfw_app::scene::simple {
         vkfw_core::gfx::DescriptorSetLayout m_worldMatrixDescriptorSetLayout;
         vkfw_core::gfx::DescriptorSetLayout m_imageSamplerDescriptorSetLayout;
         /** Holds the pipeline layout for demo rendering. */
-        vk::UniquePipelineLayout m_vkPipelineLayout;
+        vkfw_core::gfx::PipelineLayout m_pipelineLayout;
         /** Holds the descriptor pool for the UBO binding. */
-        vk::UniqueDescriptorPool m_vkDescriptorPool;
+        vkfw_core::gfx::DescriptorPool m_descriptorPool;
         /** Holds the descriptor sets. */
-        vk::DescriptorSet m_vkCameraMatrixDescriptorSet;
-        vk::DescriptorSet m_vkWorldMatrixDescriptorSet;
-        vk::DescriptorSet m_vkImageSamplerDescriptorSet;
+        vkfw_core::gfx::DescriptorSet m_cameraMatrixDescriptorSet;
+        vkfw_core::gfx::DescriptorSet m_worldMatrixDescriptorSet;
+        vkfw_core::gfx::DescriptorSet m_imageSamplerDescriptorSet;
         /** Holds the graphics pipeline for demo rendering. */
         std::unique_ptr<vkfw_core::gfx::GraphicsPipeline> m_demoPipeline;
         /** Holds the graphics pipeline for transparent demo rendering. */
@@ -88,15 +93,14 @@ namespace vkfw_app::scene::simple {
         vkfw_core::gfx::UniformBufferObject m_worldUBO;
 
         /** The command pool for the transfer cmd buffers. */
-        vk::UniqueCommandPool
-            m_transferCmdPool; // TODO: at some point we may need one per buffer? [10/19/2018 Sebastian Maisch]
+        vkfw_core::gfx::CommandPool m_transferCmdPool; // TODO: at some point we may need one per buffer? [10/19/2018 Sebastian Maisch]
         /** Holds the command buffers for transferring the uniform buffers. */
-        std::vector<vk::UniqueCommandBuffer> m_vkTransferCommandBuffers;
+        std::vector<vkfw_core::gfx::CommandBuffer> m_transferCommandBuffers;
 
         /** Holds the texture used. */
         std::shared_ptr<vkfw_core::gfx::Texture2D> m_demoTexture;
         /** Holds the texture sampler. */
-        vk::UniqueSampler m_vkDemoSampler;
+        vkfw_core::gfx::Sampler m_demoSampler;
 
         /** Holds the AssImp demo model. */
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_meshInfo;
