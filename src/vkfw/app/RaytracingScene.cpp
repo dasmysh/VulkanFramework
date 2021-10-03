@@ -216,26 +216,14 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
                                               vkfw_core::VKWindow* window)
     {
-        // auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
+        auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
-        // cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
-        // cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_descriptorSet.GetHandle(),
-        //                              static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+        cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
+        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_descriptorSet.GetHandle(),
+                                     static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
 
-        // vk::DeviceSize shaderBindingTableSize = shaderGroupBaseAlignment * m_shaderGroups.size();
-        //
-        // auto sbtDeviceAddress = m_shaderBindingTable->GetDeviceAddress().deviceAddress;
-        // auto rayGenDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexRaygen;
-        // vk::StridedDeviceAddressRegionKHR raygenShaderSBTEntry{rayGenDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-        // auto missDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexMiss;
-        // vk::StridedDeviceAddressRegionKHR missShaderSBTEntry{missDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-        // auto hitDeviceAddress = sbtDeviceAddress + static_cast<vk::DeviceSize>(shaderGroupBaseAlignment) * indexClosestHit;
-        // vk::StridedDeviceAddressRegionKHR hitShaderSBTEntry{hitDeviceAddress, shaderBindingTableSize, shaderBindingTableSize};
-        //
-        // vk::StridedDeviceAddressRegionKHR callableShaderSTBEntry{};
-
-        // cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
-        //                                    m_storageImage->GetPixelSize().z);
+        cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
+                                           m_storageImage->GetPixelSize().z);
 
         // Prepare current swapchain image as transfer destination
         window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
