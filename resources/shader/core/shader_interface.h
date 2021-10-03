@@ -31,8 +31,8 @@ namespace name { \
 #define CONSTANT const
 #define START_INTERFACE(name)
 #define END_INTERFACE
-#define START_BINDING(a) CONSTANT uint
-#define END_BINDING()
+#define START_CONSTANTS(name) CONSTANT uint
+#define END_CONSTANTS()
 
 #endif
 

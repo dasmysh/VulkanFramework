@@ -14,7 +14,7 @@ START_CONSTANTS(RTBindings)
     Indices = 4,
     InstanceInfos = 5,
     DiffuseTextures = 6,
-    BumpTextures = 7 
+    BumpTextures = 7
 END_CONSTANTS();
 
 END_INTERFACE

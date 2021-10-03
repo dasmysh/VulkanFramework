@@ -4,6 +4,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "ray.glsl"
+#include "ray_tracing_shader_host_interface.h"
 
 layout(location = 0) rayPayloadInEXT RayPayload hitValue;
 hitAttributeEXT vec2 attribs;
@@ -27,9 +28,10 @@ struct InstanceDesc
     mat4 transformInverseTranspose;
 };
 
-layout(scalar, binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices[];
-layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices[];
-layout(scalar, binding = 5, set = 0) buffer InstanceInfos { InstanceDesc i[]; } instances;
+layout(scalar, binding = Vertices, set = 0) buffer VerticesBuffer { Vertex v[]; } vertices[];
+layout(binding = Indices, set = 0) buffer IndicesBuffer { uint i[]; } indices[];
+layout(scalar, binding = InstanceInfos, set = 0) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
+layout(binding = DiffuseTextures, set = 0) uniform sampler2D diffuseTextures[];
 
 void main()
 {
