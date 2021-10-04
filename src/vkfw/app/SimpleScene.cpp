@@ -42,8 +42,8 @@ namespace vkfw_app::scene::simple {
                                          {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}}
         , m_indices{0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4}
         , m_memGroup{GetDevice(), "SimpleSceneMemoryGroup", vk::MemoryPropertyFlags()}
-        , m_cameraUBO{vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())}
-        , m_worldUBO{vkfw_core::gfx::UniformBufferObject::Create<vkfw_core::gfx::WorldMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())}
+        , m_cameraUBO{vkfw_core::gfx::UniformBufferObject::Create<mesh_sample::CameraUniformBufferObject>(GetDevice(), GetNumberOfFramebuffers())}
+        , m_worldUBO{vkfw_core::gfx::UniformBufferObject::Create<mesh::WorldUniformBufferObject>(GetDevice(), GetNumberOfFramebuffers())}
         , m_demoSampler{GetDevice()->GetHandle(), "SimpleSceneDemoSampler", vk::UniqueSampler{}}
     {
         InitializeScene();
@@ -58,12 +58,12 @@ namespace vkfw_app::scene::simple {
         // maybe set viewport as dynamic...
         m_demoPipeline = window->GetDevice().CreateGraphicsPipeline(
             std::vector<std::string>{"shader/mesh/mesh.vert", "shader/mesh/mesh.frag"}, screenSize, 1);
-        m_demoPipeline->ResetVertexInput<SimpleVertex>();
+        m_demoPipeline->ResetVertexInput<mesh_sample::SimpleVertex>();
         m_demoPipeline->CreatePipeline(true, window->GetRenderPass(), 0, m_pipelineLayout);
 
         m_demoTransparentPipeline = window->GetDevice().CreateGraphicsPipeline(
             std::vector<std::string>{"shader/simple_transparent.vert", "shader/simple_transparent.frag"}, screenSize, 1);
-        m_demoTransparentPipeline->ResetVertexInput<SimpleVertex>();
+        m_demoTransparentPipeline->ResetVertexInput<mesh_sample::SimpleVertex>();
         m_demoTransparentPipeline->GetRasterizer().cullMode = vk::CullModeFlagBits::eNone;
         m_demoTransparentPipeline->GetColorBlendAttachment(0).blendEnable = VK_TRUE;
         m_demoTransparentPipeline->GetColorBlendAttachment(0).srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
@@ -106,13 +106,13 @@ namespace vkfw_app::scene::simple {
 
     void SimpleScene::FrameMove(float time, float, const vkfw_core::VKWindow* window)
     {
-        CameraMatrixUBO camera_ubo;
-        vkfw_core::gfx::WorldMatrixUBO world_ubo;
-        world_ubo.m_model = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        world_ubo.m_normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.m_model)));
-        m_planesWorldMatrix = world_ubo.m_model;
-        camera_ubo.m_view = GetCamera()->GetViewMatrix();
-        camera_ubo.m_proj = GetCamera()->GetProjMatrix();
+        mesh_sample::CameraUniformBufferObject camera_ubo;
+        mesh::WorldUniformBufferObject world_ubo;
+        world_ubo.model = glm::rotate(glm::mat4(1.0f), 0.3f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        world_ubo.normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(world_ubo.model)));
+        m_planesWorldMatrix = world_ubo.model;
+        camera_ubo.view = GetCamera()->GetViewMatrix();
+        camera_ubo.proj = GetCamera()->GetProjMatrix();
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         m_cameraUBO.UpdateInstanceData(uboIndex, camera_ubo);
@@ -139,14 +139,14 @@ namespace vkfw_app::scene::simple {
 
         auto numUBOBuffers = GetNumberOfFramebuffers();
 
-        CameraMatrixUBO initialCameraUBO{GetCamera()->GetViewMatrix(), GetCamera()->GetProjMatrix()};
-        vkfw_core::gfx::WorldMatrixUBO initialWorldUBO;
-        initialWorldUBO.m_model =
+        mesh_sample::CameraUniformBufferObject initialCameraUBO{GetCamera()->GetViewMatrix(), GetCamera()->GetProjMatrix()};
+        mesh::WorldUniformBufferObject initialWorldUBO;
+        initialWorldUBO.model =
             glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        initialWorldUBO.m_normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.m_model)));
+        initialWorldUBO.normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model)));
 
         std::vector<glm::vec3> planesPoints;
-        for (const auto& v : m_vertices) planesPoints.push_back(v.m_position);
+        for (const auto& v : m_vertices) planesPoints.push_back(v.inPosition);
         m_planesAABB.FromPoints(planesPoints);
 
         {
@@ -188,7 +188,7 @@ namespace vkfw_app::scene::simple {
 
         m_meshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", GetDevice());
         m_mesh = std::make_unique<vkfw_core::gfx::Mesh>(
-            vkfw_core::gfx::Mesh::CreateWithInternalMemoryGroup<SimpleVertex, SimpleMaterial>("SimpleSceneMesh", m_meshInfo, numUBOBuffers, GetDevice(), vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{{0, 1}}));
+            vkfw_core::gfx::Mesh::CreateWithInternalMemoryGroup<mesh_sample::SimpleVertex, SimpleMaterial>("SimpleSceneMesh", m_meshInfo, numUBOBuffers, GetDevice(), vk::MemoryPropertyFlags(), std::vector<std::uint32_t>{{0, 1}}));
         m_mesh->UploadMeshData(transfer);
 
         m_memGroup.FinalizeDeviceGroup();
@@ -203,8 +203,8 @@ namespace vkfw_app::scene::simple {
                 vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
                 m_transferCommandBuffers[i].Begin(beginInfo);
 
-                m_cameraUBO.FillUploadCmdBuffer<CameraMatrixUBO>(m_transferCommandBuffers[i], i);
-                m_worldUBO.FillUploadCmdBuffer<vkfw_core::gfx::WorldMatrixUBO>(m_transferCommandBuffers[i], i);
+                m_cameraUBO.FillUploadCmdBuffer<mesh_sample::CameraUniformBufferObject>(m_transferCommandBuffers[i], i);
+                m_worldUBO.FillUploadCmdBuffer<mesh::WorldUniformBufferObject>(m_transferCommandBuffers[i], i);
 
                 m_mesh->TransferWorldMatrices(m_transferCommandBuffers[i], i);
                 m_transferCommandBuffers[i].End();

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "app/Scene.h"
+#include "mesh/mesh_sample_host_interface.h"
 #include "gfx/VertexFormats.h"
 
 #include <gfx/vk/UniformBufferObject.h>
@@ -34,12 +35,6 @@ namespace vkfw_core::gfx {
 }
 
 namespace vkfw_app::scene::simple {
-
-    struct CameraMatrixUBO
-    {
-        glm::mat4 m_view;
-        glm::mat4 m_proj;
-    };
 
     class SimpleScene : public Scene
     {
@@ -75,7 +70,7 @@ namespace vkfw_app::scene::simple {
         /** Holds the graphics pipeline for transparent demo rendering. */
         std::unique_ptr<vkfw_core::gfx::GraphicsPipeline> m_demoTransparentPipeline;
         /** Holds vertex information. */
-        std::vector<SimpleVertex> m_vertices;
+        std::vector<mesh_sample::SimpleVertex> m_vertices;
         /** Holds index information. */
         std::vector<std::uint32_t> m_indices;
         /** Holds the vertex and index buffer. */

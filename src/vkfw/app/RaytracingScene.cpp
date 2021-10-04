@@ -17,10 +17,10 @@
 #include <gfx/vk/QueuedDeviceTransfer.h>
 #include <gfx/vk/memory/DeviceMemory.h>
 #include <gfx/camera/UserControlledCamera.h>
-#include <gfx/VertexFormats.h>
+// #include <gfx/VertexFormats.h>
 #include <glm/gtc/matrix_inverse.hpp>
 
-#include "shader/rt/ray_tracing_shader_host_interface.h"
+#include "rt/rt_sample_host_interface.h"
 
 #undef MemoryBarrier
 
@@ -104,7 +104,7 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, 1, vertices.size(), sizeof(Vertex),
                                          m_memGroup.GetBuffer(completeBufferIdx));
 
-        m_asGeometry.AddMeshGeometry<RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
+        m_asGeometry.AddMeshGeometry<rt_sample::RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
         m_asGeometry.FinalizeGeometry();
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
@@ -117,7 +117,7 @@ namespace vkfw_app::scene::rt {
     {
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        using Bindings = ray_tracing::RTBindings;
+        using Bindings = rt_sample::RTBindings;
 
         m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::AccelerationStructure));
         m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR, static_cast<uint32_t>(Bindings::Vertices), static_cast<uint32_t>(Bindings::Indices),
@@ -181,7 +181,7 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::FillDescriptorSets()
     {
-        using Bindings = ray_tracing::RTBindings;
+        using Bindings = rt_sample::RTBindings;
 
         std::vector<vk::WriteDescriptorSet> descSetWrites;
         descSetWrites.resize(8);
