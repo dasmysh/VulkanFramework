@@ -33,12 +33,14 @@ namespace vkfw_app::scene::rt {
         , m_memGroup{GetDevice(), "RTSceneMemoryGroup", vk::MemoryPropertyFlags()}
         , m_cameraUBO{
               vkfw_core::gfx::UniformBufferObject::Create<CameraMatrixUBO>(GetDevice(), GetNumberOfFramebuffers())}
-        , m_asGeometry{GetDevice(), "RTSceneASGeometry"}
+        , m_asGeometry{GetDevice(), "RTSceneASGeometry", std::vector<std::uint32_t>{{0, 1}}}
         , m_descriptorSetLayout{"RTSceneDescriptorSetLayout"}
         , m_pipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
         , m_descriptorSet{GetDevice()->GetHandle(), "RTSceneDescriptorSet", vk::DescriptorSet{}}
         , m_pipeline{GetDevice(), "RTScenePipeline", {}}
     {
+        m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
+        m_triangleMaterial.m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
         InitializeScene();
         InitializeDescriptorSets();
     }
@@ -60,9 +62,11 @@ namespace vkfw_app::scene::rt {
         // Setup indices
         std::vector<uint32_t> indicesRT = {0, 1, 2};
 
-        m_meshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", GetDevice());
+        m_teapotMeshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("teapot/teapot.obj", GetDevice());
+        m_sponzaMeshInfo = std::make_shared<vkfw_core::gfx::AssImpScene>("sponza/sponza.obj", GetDevice());
 
-        glm::mat4 worldMatrixMesh = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
+        glm::mat4 worldMatrixTeapot = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
+        glm::mat4 worldMatrixSponza = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
 
         auto indexBufferOffset = GetDevice()->CalculateStorageBufferAlignment(vkfw_core::byteSizeOf(vertices));
         // this is not documented but it seems this memory needs the same alignment as uniform buffers.
@@ -101,11 +105,12 @@ namespace vkfw_app::scene::rt {
             }
         }
 
-        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, 1, vertices.size(), sizeof(Vertex),
+        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, m_triangleMaterial, 1, vertices.size(), sizeof(Vertex),
                                          m_memGroup.GetBuffer(completeBufferIdx));
 
-        m_asGeometry.AddMeshGeometry<rt_sample::RayTracingVertex>(*m_meshInfo.get(), worldMatrixMesh);
-        m_asGeometry.FinalizeGeometry();
+        m_asGeometry.AddMeshGeometry(*m_teapotMeshInfo.get(), worldMatrixTeapot);
+        m_asGeometry.AddMeshGeometry(*m_sponzaMeshInfo.get(), worldMatrixSponza);
+        m_asGeometry.FinalizeGeometry<rt_sample::RayTracingVertex>();
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
@@ -121,7 +126,8 @@ namespace vkfw_app::scene::rt {
 
         m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::AccelerationStructure));
         m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR, static_cast<uint32_t>(Bindings::Vertices), static_cast<uint32_t>(Bindings::Indices),
-                                                       static_cast<uint32_t>(Bindings::InstanceInfos), static_cast<uint32_t>(Bindings::DiffuseTextures), static_cast<uint32_t>(Bindings::BumpTextures));
+                                                       static_cast<uint32_t>(Bindings::InstanceInfos), static_cast<uint32_t>(Bindings::MaterialInfos), static_cast<uint32_t>(Bindings::DiffuseTextures),
+                                                       static_cast<uint32_t>(Bindings::BumpTextures));
         Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::ResultImage));
         UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(Bindings::CameraProperties));
 
@@ -184,31 +190,33 @@ namespace vkfw_app::scene::rt {
         using Bindings = rt_sample::RTBindings;
 
         std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(8);
+        descSetWrites.resize(static_cast<std::size_t>(Bindings::BindingsSize));
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
         vk::DescriptorBufferInfo camrraBufferInfo;
         vk::DescriptorImageInfo storageImageDesc;
         std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
         std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
         vk::DescriptorBufferInfo instanceBufferInfo;
+        vk::DescriptorBufferInfo materialBufferInfo;
         std::vector<vk::DescriptorImageInfo> diffuseTextureInfos;
         std::vector<vk::DescriptorImageInfo> bumpTextureInfos;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
-        descSetWrites[0] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
+        descSetWrites[static_cast<std::size_t>(Bindings::AccelerationStructure)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
 
         m_storageImage->FillDescriptorImageInfo(storageImageDesc, vkfw_core::gfx::Sampler{});
-        descSetWrites[1] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
+        descSetWrites[static_cast<std::size_t>(Bindings::ResultImage)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
 
         m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
-        descSetWrites[2] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
+        descSetWrites[static_cast<std::size_t>(Bindings::CameraProperties)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
 
-        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, diffuseTextureInfos, bumpTextureInfos);
-        descSetWrites[3] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
-        descSetWrites[4] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
-        descSetWrites[5] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
-        descSetWrites[6] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
-        descSetWrites[7] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
+        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, materialBufferInfo, diffuseTextureInfos, bumpTextureInfos);
+        descSetWrites[static_cast<std::size_t>(Bindings::Vertices)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
+        descSetWrites[static_cast<std::size_t>(Bindings::Indices)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
+        descSetWrites[static_cast<std::size_t>(Bindings::InstanceInfos)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
+        descSetWrites[static_cast<std::size_t>(Bindings::MaterialInfos)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::MaterialInfos), &materialBufferInfo);
+        descSetWrites[static_cast<std::size_t>(Bindings::DiffuseTextures)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
+        descSetWrites[static_cast<std::size_t>(Bindings::BumpTextures)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
 
         GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
     }

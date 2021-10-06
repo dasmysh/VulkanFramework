@@ -12,8 +12,10 @@ BEGIN_CONSTANTS(RTBindings)
     Vertices = 3,
     Indices = 4,
     InstanceInfos = 5,
-    DiffuseTextures = 6,
-    BumpTextures = 7
+    MaterialInfos = 6,
+    DiffuseTextures = 7,
+    BumpTextures = 8,
+    BindingsSize = 9
 END_CONSTANTS()
 
 struct RayTracingVertex

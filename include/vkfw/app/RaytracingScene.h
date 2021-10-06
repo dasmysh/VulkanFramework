@@ -86,7 +86,9 @@ namespace vkfw_app::scene::rt {
         /** The raytracing pipeline. */
         vkfw_core::gfx::RayTracingPipeline m_pipeline;
 
-        /** Holds the AssImp demo model. */
-        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_meshInfo;
+        vkfw_core::gfx::MaterialInfo m_triangleMaterial;
+        /** Holds the AssImp demo models. */
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
     };
 }
