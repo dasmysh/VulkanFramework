@@ -3,7 +3,7 @@
 
 #include "rt/ray_tracing_host_interface.h"
 
-BEGIN_INTERFACE(rt_sample)
+BEGIN_INTERFACE(vkfw_app::scene::rt)
 
 BEGIN_CONSTANTS(RTBindings)
     AccelerationStructure = 0,
@@ -32,6 +32,15 @@ struct RayTracingVertex
     static std::array<vk::VertexInputAttributeDescription, 4> m_attributeDescriptions;
 #endif
 };
+
+BEGIN_UNIFORM_BLOCK(set = 0, binding = CameraProperties, CameraPropertiesBuffer)
+mat4 viewInverse;
+mat4 projInverse;
+uint frameId;
+uint cameraMovedThisFrame;
+uint cosineSampled;
+float maxRange;
+END_UNIFORM_BLOCK(cam)
 
 END_INTERFACE()
 

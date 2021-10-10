@@ -17,8 +17,13 @@ layout(binding = BumpTextures, set = 0) uniform sampler2D bumpTextures[];
 
 void main()
 {
+    if (hitValue.done == 1) {
+        hitValue.attenuation = vec3(0.0f);
+        return;
+    }
+
     const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-    // uint vertexSize = instances.i[gl_InstanceID].vertexSize;
+    uint vertexSize = instances.i[gl_InstanceID].vertexSize;
     // if (vertexSize != 48) {
     //     hitValue.attenuation = barycentricCoords;
     //     hitValue.done = 1;
@@ -41,6 +46,7 @@ void main()
     RayTracingVertex v1 = vertices[nonuniformEXT(bufferIndex)].v[ind.y];
     RayTracingVertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
 
+
     vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z;
     normal = normalize(vec3(transformInverseTranspose * vec4(normal, 0.0)));
 
@@ -50,8 +56,7 @@ void main()
     vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
 
     hitValue.rayOrigin = worldPos;
-    // hitValue.rayDirection = normal;
-    // hitValue.attenuation = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
-    hitValue.attenuation = normal;
-    hitValue.done += 1;
+    hitValue.rayDirection = normal;
+    hitValue.attenuation = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
+    hitValue.done = 1;
 }

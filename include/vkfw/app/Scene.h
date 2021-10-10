@@ -36,6 +36,7 @@ namespace vkfw_app::scene {
                                          vkfw_core::VKWindow* window) = 0;
         virtual void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) = 0;
         virtual void RenderScene(const vkfw_core::VKWindow* window) = 0;
+        virtual bool RenderGUI(const vkfw_core::VKWindow* window);
 
     protected:
         vkfw_core::gfx::LogicalDevice* GetDevice() const { return m_device; }

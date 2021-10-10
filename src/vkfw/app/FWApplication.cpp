@@ -8,22 +8,13 @@
 
 #include "app/FWApplication.h"
 #include "app_constants.h"
-
-// #include <gfx/vk/GraphicsPipeline.h>
 #include <app/VKWindow.h>
 #include <gfx/vk/LogicalDevice.h>
 // ReSharper disable once CppUnusedIncludeDirective
 #include <gfx/vk/Framebuffer.h>
-// #include <gfx/vk/buffers/DeviceBuffer.h>
-// #include <gfx/vk/buffers/HostBuffer.h>
-// #include <gfx/vk/buffers/HostBuffer.h>
-// #include <gfx/vk/UniformBufferObject.h>
 #include <gfx/camera/ArcballCamera.h>
 
-// #include <glm/gtc/matrix_transform.hpp>
 #include "imgui.h"
-
-
 #include <vulkan/vulkan.hpp>
 
 namespace vkfw_app {
@@ -84,21 +75,28 @@ namespace vkfw_app {
 
     void FWApplication::RenderGUI(vkfw_core::VKWindow* window)
     {
-        static bool show_demo_window = true;
-        ImGui::ShowDemoWindow(&show_demo_window);
-
-
+        bool changed = false;
         ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(220, 90), ImGuiCond_Always);
         if (ImGui::Begin("Render Control")) {
-            bool changed = false;
             if (ImGui::RadioButton("Render Simple Scene", &m_scene_to_render, 0)) changed = true;
             if (ImGui::RadioButton("Render RayTracing Scene", &m_scene_to_render, 1)) changed = true;
-            if (changed) {
-                window->ForceResizeEvent();
-            }
         }
         ImGui::End();
+
+        switch (m_scene_to_render) {
+        case 0: {
+            changed = changed || m_simple_scene.RenderGUI(window);
+            break;
+        }
+        case 1: {
+            changed = changed || m_rt_scene.RenderGUI(window);
+            break;
+        }
+        default: break;
+        }
+
+        if (changed) { window->ForceResizeEvent(); }
     }
 
     bool FWApplication::HandleKeyboard(int key, int scancode, int action, int mods, vkfw_core::VKWindow* sender)

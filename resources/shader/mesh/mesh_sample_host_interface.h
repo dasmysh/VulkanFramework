@@ -5,11 +5,20 @@
 
 BEGIN_INTERFACE(mesh_sample)
 
+BEGIN_CONSTANTS(MeshInputBindings)
+Position = 0,
+Color = 1,
+TexCoords = 2
+END_CONSTANTS()
+
+BEGIN_CONSTANTS(MeshBindings)
+CameraProperties = 0
+END_CONSTANTS()
 
 BEGIN_INPUT_BLOCK(SimpleVertex)
-INPUT_ELEMENT(0) vec3 inPosition;
-INPUT_ELEMENT(1) vec3 inColor;
-INPUT_ELEMENT(2) vec2 inTexCoord;
+INPUT_ELEMENT(Position) vec3 inPosition;
+INPUT_ELEMENT(Color) vec3 inColor;
+INPUT_ELEMENT(TexCoords) vec2 inTexCoord;
 
 #ifdef __cplusplus
 SimpleVertex() = default;
@@ -20,7 +29,7 @@ static std::array<vk::VertexInputAttributeDescription, 3> m_attributeDescription
 #endif
 END_INPUT_BLOCK()
 
-BEGIN_UNIFORM_BLOCK(set = 2, binding = 0, CameraUniformBufferObject)
+BEGIN_UNIFORM_BLOCK(set = 2, binding = CameraProperties, CameraUniformBufferObject)
 mat4 view;
 mat4 proj;
 END_UNIFORM_BLOCK(camera_ubo)

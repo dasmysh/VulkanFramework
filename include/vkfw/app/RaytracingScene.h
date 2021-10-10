@@ -15,6 +15,7 @@
 #include <gfx/vk/pipeline/DescriptorSetLayout.h>
 #include <gfx/vk/wrappers/PipelineLayout.h>
 #include <gfx/vk/pipeline/RayTracingPipeline.h>
+#include "rt/rt_sample_host_interface.h"
 
 #include <glm/mat4x4.hpp>
 
@@ -29,12 +30,6 @@ namespace vkfw_core::gfx {
 
 namespace vkfw_app::scene::rt {
 
-    struct CameraMatrixUBO
-    {
-        glm::mat4 m_viewInverse;
-        glm::mat4 m_projInverse;
-    };
-
     class RaytracingScene : public Scene
     {
     public:
@@ -46,6 +41,7 @@ namespace vkfw_app::scene::rt {
                                  vkfw_core::VKWindow* window) override;
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
+        bool RenderGUI(const vkfw_core::VKWindow* window) override;
 
     private:
         constexpr static std::uint32_t indexRaygen = 0;
@@ -90,5 +86,7 @@ namespace vkfw_app::scene::rt {
         /** Holds the AssImp demo models. */
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
+
+        CameraPropertiesBuffer m_cameraProperties;
     };
 }

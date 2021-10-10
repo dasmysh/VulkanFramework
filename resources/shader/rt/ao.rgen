@@ -1,0 +1,135 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#define RAYGEN
+
+#include "rt_sample_host_interface.h"
+#include "../core/random.glsl"
+#include "rayTraversal.glsl"
+
+layout(binding = ResultImage, set = 0, rgba8) uniform image2D image;
+
+
+const float M_PI = 3.14159265359;
+const float aoRayCount = 16;
+
+vec3 sampleUniformHemisphere(vec3 normal, vec3 tangent, vec3 binormal, inout uint rngState) {
+    float r1 = rand(rngState);
+    float r2 = rand(rngState);
+    float sq = sqrt(1.0 - r2);
+
+    vec3 direction = vec3(cos(2 * M_PI * r1) * sq, sin(2 * M_PI * r1) * sq, sqrt(r2));
+    direction      = direction.x * tangent + direction.y * binormal + direction.z * normal;
+
+    return direction;
+}
+
+float uniformHemispherePDF() {
+    return 1.0f / (2.0f * M_PI);
+}
+
+vec2 sampleUniformDiskConcentric(inout uint rngState) {
+    // from PBRT v4
+    // Map _u_ to $[-1,1]^2$ and handle degeneracy at the origin
+    vec2 u = vec2(rand(rngState), rand(rngState));
+    vec2 uOffset = 2.0f * u - vec2(1.0f, 1.0f);
+    if (uOffset.x == 0.0f && uOffset.y == 0.0f)
+        return vec2(0.0f);
+
+    // Apply concentric mapping to point
+    float theta, r;
+    if (abs(uOffset.x) > abs(uOffset.y)) {
+        r = uOffset.x;
+        theta = (M_PI / 4.0f) * (uOffset.y / uOffset.x);
+    } else {
+        r = uOffset.y;
+        theta = (M_PI / 2.0f) - (M_PI / 4.0f) * (uOffset.x / uOffset.y);
+    }
+    return r * vec2(cos(theta), sin(theta));
+}
+
+vec3 sampleCosineHemisphere(vec3 normal, vec3 tangent, vec3 binormal, inout uint rngState) {
+    // from PBRT v4
+    vec2 d = sampleUniformDiskConcentric(rngState);
+    float z2 = min(1.0f, dot(d, d));
+    float z = sqrt(1.0f - z2);
+
+    vec3 direction = d.x * tangent + d.y * binormal + z * normal;
+    return direction;
+}
+
+float cosineHemispherePDF(float cosTheta) {
+    return cosTheta / M_PI;
+}
+
+vec3 face_forward(vec3 direction, vec3 normal)
+{
+    if (dot(normal, direction) > 0.0f) normal *= -1;
+    return normal;
+}
+
+void compute_default_basis(const vec3 normal, out vec3 tangent, out vec3 binormal)
+{
+  if(abs(normal.x) > abs(normal.y))
+    tangent = vec3(normal.z, 0, -normal.x) / sqrt(normal.x * normal.x + normal.z * normal.z);
+  else
+    tangent = vec3(0, -normal.z, normal.y) / sqrt(normal.y * normal.y + normal.z * normal.z);
+  binormal = cross(normal, tangent);
+}
+
+
+void main()
+{
+    const bool cosSample = cam.cosineSampled == 1;
+    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, cam.frameId);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+
+    vec4 origin = cam.viewInverse * vec4(0,0,0,1);
+    vec4 target = cam.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = cam.viewInverse * vec4(normalize(target.xyz / target.w), 0);
+    vec4 resultColor = vec4(0.0f);
+    float tmax = 10000.0;
+    vec3 normal;
+
+    bool hit = findNextNonSpecularHit(origin.xyz, direction.xyz, normal, tmax);
+    if (!hit) {
+        resultColor = vec4(normal, 1.0f);
+    }
+    else
+    {
+        vec3 n = face_forward(direction.xyz, normal);
+        vec3 s, t;
+        compute_default_basis(n, s, t);
+        vec3 p = origin.xyz;
+        // resultColor = vec4(normal, 1.0f);
+
+        for (int i = 0; i < int(aoRayCount); ++i) {
+            vec3 sample_direction;
+            float pdf;
+            if (!cosSample)
+            {
+                sample_direction = sampleUniformHemisphere(n, s, t, rngState);
+                pdf = uniformHemispherePDF();
+            }
+            else
+            {
+                sample_direction = sampleCosineHemisphere(n, s, t, rngState);
+                pdf = cosineHemispherePDF(abs(sample_direction.z));
+            }
+
+            vec3 hitNormal, rayOrigin = p, rayDirection = sample_direction;
+            if (!findNextNonSpecularHit(rayOrigin, rayDirection, hitNormal, cam.maxRange)) {
+                resultColor += vec4(vec3(dot(sample_direction, n) / (M_PI * pdf)), 1.0f);
+                // resultColor += vec4(vec3(0.3f, 0, 0), 1.0f);
+            }
+            else
+            {
+                resultColor += vec4(vec3(0), 1.0f);
+            }
+        }
+        resultColor /= resultColor.w;
+    }
+
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), resultColor);
+}

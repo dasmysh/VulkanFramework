@@ -1,39 +1,37 @@
-// Random algorithm from https://stackoverflow.com/a/17479300/5973872
+/*
+ * Implementation is taken from Ray Tracing Gems II
+ */
 
-// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
-uint hash( uint x ) {
-    x += ( x << 10u );
-    x ^= ( x >>  6u );
-    x += ( x <<  3u );
-    x ^= ( x >> 11u );
-    x += ( x << 15u );
+uint jenkinsHash(uint x)
+{
+    x += x << 10;
+    x ^= x >> 6;
+    x += x << 3;
+    x ^= x >> 11;
+    x += x << 15;
     return x;
 }
 
-
-
-// Compound versions of the hashing algorithm I whipped together.
-uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
-uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
-uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
-
-
-
-// Construct a float with half-open range [0:1] using low 23 bits.
-// All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
-float floatConstruct( uint m ) {
-    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
-    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
-
-    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
-    m |= ieeeOne;                          // Add fractional part to 1.0
-
-    float  f = uintBitsToFloat( m );       // Range [1:2]
-    return f - 1.0;                        // Range [0:1]
+uint initRNG(uvec2 pixel, uvec2 resolution, uint frame)
+{
+    uint rngState = uint(dot(pixel, uvec2(1, resolution.x))) ^ jenkinsHash(frame);
+    return jenkinsHash(rngState);
 }
 
-// Pseudo-random value in half-open range [0:1].
-float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
-float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float uintToFloat(uint x)
+{
+    return uintBitsToFloat(0x3F800000 | (x >> 9)) - 1.0f;
+}
+
+uint xorshift(inout uint rngState)
+{
+    rngState ^= rngState << 13;
+    rngState ^= rngState >> 17;
+    rngState ^= rngState << 5;
+    return rngState;
+}
+
+float rand(inout uint rngState)
+{
+    return uintToFloat(xorshift(rngState));
+}

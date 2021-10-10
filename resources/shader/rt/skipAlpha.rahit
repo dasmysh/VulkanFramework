@@ -18,20 +18,11 @@ layout(binding = BumpTextures, set = 0) uniform sampler2D bumpTextures[];
 void main()
 {
     const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-    // uint vertexSize = instances.i[gl_InstanceID].vertexSize;
-    // if (vertexSize != 48) {
-    //     hitValue.attenuation = barycentricCoords;
-    //     hitValue.done = 1;
-    //     return;
-    // }
 
     uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;
     uint indexOffset = instances.i[gl_InstanceID].indexOffset;
     uint materialIndex = instances.i[gl_InstanceID].materialIndex;
     uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
-    mat4 transform = instances.i[gl_InstanceID].transform;
-    mat4 transformInverseTranspose = instances.i[gl_InstanceID].transformInverseTranspose;
-    // uint objId = scnDesc.i[gl_InstanceID].objId;
 
     ivec3 ind = ivec3(indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 0],
                       indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 1],
@@ -41,17 +32,12 @@ void main()
     RayTracingVertex v1 = vertices[nonuniformEXT(bufferIndex)].v[ind.y];
     RayTracingVertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
 
-    vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z;
-    normal = normalize(vec3(transformInverseTranspose * vec4(normal, 0.0)));
-
-    vec3 worldPos = v0.position * barycentricCoords.x + v1.position * barycentricCoords.y + v2.position * barycentricCoords.z;
-    worldPos = vec3(transform * vec4(worldPos, 1.0));
-
     vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
+    float alpha = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).a;
 
-    hitValue.rayOrigin = worldPos;
-    // hitValue.rayDirection = normal;
-    // hitValue.attenuation = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
-    hitValue.attenuation = normal;
-    hitValue.done += 1;
+    if (alpha == 0.0f)
+    {
+        // hitValue.done = 100;
+        ignoreIntersectionEXT;
+    }
 }

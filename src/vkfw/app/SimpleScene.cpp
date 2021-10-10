@@ -216,8 +216,7 @@ namespace vkfw_app::scene::simple {
     {
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        UniformBufferObject::AddDescriptorLayoutBinding(m_cameraMatrixDescriptorSetLayout,
-                                                        vk::ShaderStageFlagBits::eVertex, true, 0);
+        UniformBufferObject::AddDescriptorLayoutBinding(m_cameraMatrixDescriptorSetLayout, vk::ShaderStageFlagBits::eVertex, true, static_cast<std::uint32_t>(mesh_sample::MeshBindings::CameraProperties));
         UniformBufferObject::AddDescriptorLayoutBinding(m_worldMatrixDescriptorSetLayout,
                                                         vk::ShaderStageFlagBits::eVertex, true, 0);
         Texture::AddDescriptorLayoutBinding(m_imageSamplerDescriptorSetLayout,
@@ -280,7 +279,7 @@ namespace vkfw_app::scene::simple {
             descSetWrites[1] = m_imageSamplerDescriptorSetLayout.MakeWrite(m_imageSamplerDescriptorSet, 0, &descImageInfo);
 
             m_cameraUBO.FillDescriptorBufferInfo(descBufferInfos[1]);
-            descSetWrites[2] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_cameraMatrixDescriptorSet, 0, &descBufferInfos[1]);
+            descSetWrites[2] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_cameraMatrixDescriptorSet, static_cast<std::uint32_t>(mesh_sample::MeshBindings::CameraProperties), &descBufferInfos[1]);
 
             GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
         }

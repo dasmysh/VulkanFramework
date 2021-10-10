@@ -14,8 +14,9 @@
 namespace mesh_sample {
 
     vk::VertexInputBindingDescription SimpleVertex::m_bindingDescription{0, sizeof(SimpleVertex), vk::VertexInputRate::eVertex};
-    std::array<vk::VertexInputAttributeDescription, 3> SimpleVertex::m_attributeDescriptions{
-        {{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, inPosition)}, {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, inColor)}, {2, 0, vk::Format::eR32G32Sfloat, offsetof(SimpleVertex, inTexCoord)}}};
+    std::array<vk::VertexInputAttributeDescription, 3> SimpleVertex::m_attributeDescriptions{{{static_cast<std::uint32_t>(MeshInputBindings::Position), 0, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, inPosition)},
+                                                                                              {static_cast<std::uint32_t>(MeshInputBindings::Color), 0, vk::Format::eR32G32B32Sfloat, offsetof(SimpleVertex, inColor)},
+                                                                                              {static_cast<std::uint32_t>(MeshInputBindings::TexCoords), 0, vk::Format::eR32G32Sfloat, offsetof(SimpleVertex, inTexCoord)}}};
 
     SimpleVertex::SimpleVertex(const vkfw_core::gfx::MeshInfo* mi, std::size_t index)
         : inPosition{mi->GetVertices()[index]}, inColor{mi->GetColors().empty() ? glm::vec3(0.0f) : mi->GetColors()[0][index]}, inTexCoord{mi->GetTexCoords()[0][index]}
@@ -23,7 +24,7 @@ namespace mesh_sample {
     }
 }
 
-namespace rt_sample {
+namespace vkfw_app::scene::rt {
 
     vk::VertexInputBindingDescription RayTracingVertex::m_bindingDescription{0, sizeof(RayTracingVertex),
                                                                          vk::VertexInputRate::eVertex};
