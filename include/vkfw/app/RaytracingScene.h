@@ -68,16 +68,20 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::CommandBuffer> m_transferCommandBuffers;
 
         /** The texture to store raytracing results. */
-        std::unique_ptr<vkfw_core::gfx::DeviceTexture> m_storageImage;
+        std::vector<vkfw_core::gfx::DeviceTexture> m_rayTracingConvergenceImages;
 
-        /** Holds the descriptor set layouts for the raytracing pipeline. */
-        vkfw_core::gfx::DescriptorSetLayout m_descriptorSetLayout;
+        /** Holds the descriptor set layouts for the raytracing pipeline and geometry / material resources. */
+        vkfw_core::gfx::DescriptorSetLayout m_rtResourcesDescriptorSetLayout;
+        /** Holds the descriptor set layouts for the convergence image. */
+        vkfw_core::gfx::DescriptorSetLayout m_convergenceImageDescriptorSetLayout;
         /** Holds the pipeline layout for raytracing. */
         vkfw_core::gfx::PipelineLayout m_pipelineLayout;
         /** The descriptor pool. */
         vkfw_core::gfx::DescriptorPool m_descriptorPool;
-        /** The descriptor set. */
-        vkfw_core::gfx::DescriptorSet m_descriptorSet;
+        /** The descriptor set for the ray tracing resources. */
+        vkfw_core::gfx::DescriptorSet m_rtResourcesDescriptorSet;
+        /** The descriptor set for the convergence image. */
+        std::vector<vkfw_core::gfx::DescriptorSet> m_convergenceImageDescriptorSets;
 
         /** The raytracing pipeline. */
         vkfw_core::gfx::RayTracingPipeline m_pipeline;

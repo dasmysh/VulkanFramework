@@ -8,12 +8,12 @@
 
 hitAttributeEXT vec2 attribs;
 
-layout(scalar, binding = Vertices, set = 0) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
-layout(binding = Indices, set = 0) buffer IndicesBuffer { uint i[]; } indices[];
-layout(scalar, binding = InstanceInfos, set = 0) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = MaterialInfos, set = 0) buffer MaterialInfosBuffer { MaterialDesc m[]; } materials;
-layout(binding = DiffuseTextures, set = 0) uniform sampler2D diffuseTextures[];
-layout(binding = BumpTextures, set = 0) uniform sampler2D bumpTextures[];
+layout(scalar, binding = Vertices, set = RTResourcesSet) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
+layout(binding = Indices, set = RTResourcesSet) buffer IndicesBuffer { uint i[]; } indices[];
+layout(scalar, binding = InstanceInfos, set = RTResourcesSet) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
+layout(scalar, binding = MaterialInfos, set = RTResourcesSet) buffer MaterialInfosBuffer { MaterialDesc m[]; } materials;
+layout(binding = DiffuseTextures, set = RTResourcesSet) uniform sampler2D diffuseTextures[];
+layout(binding = BumpTextures, set = RTResourcesSet) uniform sampler2D bumpTextures[];
 
 void main()
 {

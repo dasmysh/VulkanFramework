@@ -6,7 +6,7 @@
 #include "../core/random.glsl"
 #include "rayTraversal.glsl"
 
-layout(binding = ResultImage, set = 0, rgba8) uniform image2D image;
+layout(binding = ResultImage, set = ConvergenceSet, rgba8) uniform image2D image;
 
 
 const float M_PI = 3.14159265359;

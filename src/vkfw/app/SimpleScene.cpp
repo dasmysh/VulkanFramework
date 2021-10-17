@@ -198,7 +198,8 @@ namespace vkfw_app::scene::simple {
         {
             m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("SimpleSceneTransferCmdPool", 1);
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{m_transferCmdPool.GetHandle(), vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers)};
-            m_transferCommandBuffers = vkfw_core::gfx::CommandBuffer::Initialize(GetDevice()->GetHandle(), "SimpleSceneTransferCommandBuffer", GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
+            m_transferCommandBuffers =
+                vkfw_core::gfx::CommandBuffer::Initialize(GetDevice()->GetHandle(), "SimpleSceneTransferCommandBuffer", m_transferCmdPool.GetQueueFamily(), GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
                 m_transferCommandBuffers[i].Begin(beginInfo);
@@ -208,6 +209,21 @@ namespace vkfw_app::scene::simple {
 
                 m_mesh->TransferWorldMatrices(m_transferCommandBuffers[i], i);
                 m_transferCommandBuffers[i].End();
+            }
+        }
+
+        {
+            vk::FenceCreateInfo fenceInfo;
+            vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "TransferImageLayoutsInitialFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
+            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
+            vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eFragmentShader};
+            auto access = m_demoTexture->GetTexture().GetAccess();
+            access.SetAccess(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eFragmentShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            barrier.Record(cmdBuffer);
+            vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {}, fence);
+            if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                throw std::runtime_error("Could not wait for fence while transitioning layout.");
             }
         }
     }
@@ -275,7 +291,7 @@ namespace vkfw_app::scene::simple {
             m_worldUBO.FillDescriptorBufferInfo(descBufferInfos[0]);
             descSetWrites[0] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_worldMatrixDescriptorSet, 0, &descBufferInfos[0]);
 
-            m_demoTexture->GetTexture().FillDescriptorImageInfo(descImageInfo, m_demoSampler);
+            m_demoTexture->GetTexture().FillDescriptorImageInfo(descImageInfo, m_demoSampler, vk::ImageLayout::eShaderReadOnlyOptimal);
             descSetWrites[1] = m_imageSamplerDescriptorSetLayout.MakeWrite(m_imageSamplerDescriptorSet, 0, &descImageInfo);
 
             m_cameraUBO.FillDescriptorBufferInfo(descBufferInfos[1]);

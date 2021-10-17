@@ -5,17 +5,26 @@
 
 BEGIN_INTERFACE(vkfw_app::scene::rt)
 
-BEGIN_CONSTANTS(RTBindings)
+BEGIN_CONSTANTS(BindingSets)
+    RTResourcesSet = 0,
+    ConvergenceSet = 1
+END_CONSTANTS()
+
+BEGIN_CONSTANTS(ResSetBindings)
     AccelerationStructure = 0,
-    ResultImage = 1,
-    CameraProperties = 2,
-    Vertices = 3,
-    Indices = 4,
-    InstanceInfos = 5,
-    MaterialInfos = 6,
-    DiffuseTextures = 7,
-    BumpTextures = 8,
-    BindingsSize = 9
+    CameraProperties = 1,
+    Vertices = 2,
+    Indices = 3,
+    InstanceInfos = 4,
+    MaterialInfos = 5,
+    DiffuseTextures = 6,
+    BumpTextures = 7,
+    BindingsSize = 8
+END_CONSTANTS()
+
+BEGIN_CONSTANTS(ConvSetBindings)
+    ResultImage = 0,
+    BindingsSize = 1
 END_CONSTANTS()
 
 struct RayTracingVertex
@@ -33,7 +42,7 @@ struct RayTracingVertex
 #endif
 };
 
-BEGIN_UNIFORM_BLOCK(set = 0, binding = CameraProperties, CameraPropertiesBuffer)
+BEGIN_UNIFORM_BLOCK(set = RTResourcesSet, binding = CameraProperties, CameraPropertiesBuffer)
 mat4 viewInverse;
 mat4 projInverse;
 uint frameId;

@@ -32,9 +32,10 @@ namespace vkfw_app::scene::rt {
         , m_memGroup{GetDevice(), "RTSceneMemoryGroup", vk::MemoryPropertyFlags()}
         , m_cameraUBO{vkfw_core::gfx::UniformBufferObject::Create<CameraPropertiesBuffer>(GetDevice(), GetNumberOfFramebuffers())}
         , m_asGeometry{GetDevice(), "RTSceneASGeometry", std::vector<std::uint32_t>{{0, 1}}}
-        , m_descriptorSetLayout{"RTSceneDescriptorSetLayout"}
+        , m_rtResourcesDescriptorSetLayout{"RTSceneResourcesDescriptorSetLayout"}
+        , m_convergenceImageDescriptorSetLayout{"RTSceneConvergenceDescriptorSet"}
         , m_pipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
-        , m_descriptorSet{GetDevice()->GetHandle(), "RTSceneDescriptorSet", vk::DescriptorSet{}}
+        , m_rtResourcesDescriptorSet{GetDevice()->GetHandle(), "RTSceneResourcesDescriptorSet", vk::DescriptorSet{}}
         , m_pipeline{GetDevice(), "RTScenePipeline", {}}
     {
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
@@ -94,7 +95,8 @@ namespace vkfw_app::scene::rt {
             m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("RTSceneTransferCommandPool", 1);
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{m_transferCmdPool.GetHandle(), vk::CommandBufferLevel::ePrimary,
                                                              static_cast<std::uint32_t>(numUBOBuffers)};
-            m_transferCommandBuffers = vkfw_core::gfx::CommandBuffer::Initialize(GetDevice()->GetHandle(), "RTSceneTransferCommandBuffer", GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
+            m_transferCommandBuffers =
+                vkfw_core::gfx::CommandBuffer::Initialize(GetDevice()->GetHandle(), "RTSceneTransferCommandBuffer", m_transferCmdPool.GetQueueFamily(), GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
             for (auto i = 0U; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
                 m_transferCommandBuffers[i].Begin(beginInfo);
@@ -116,35 +118,71 @@ namespace vkfw_app::scene::rt {
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
 
         m_asGeometry.BuildAccelerationStructure();
+
+        {
+            vk::FenceCreateInfo fenceInfo;
+            vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "TransferImageLayoutsInitialFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
+            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
+            vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eRayTracingShaderKHR};
+            m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            for (auto& convImage : m_rayTracingConvergenceImages) {
+                auto convergenceImageAccessor = convImage.GetAccess();
+                convergenceImageAccessor.SetAccess(vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eGeneral, barrier);
+            }
+            barrier.Record(cmdBuffer);
+            vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {}, fence);
+            if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                throw std::runtime_error("Could not wait for fence while transitioning layout.");
+            }
+        }
     }
 
     void RaytracingScene::InitializeDescriptorSets()
     {
         using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
-        using Bindings = RTBindings;
+        using ResBindings = ResSetBindings;
+        using ConvBindings = ConvSetBindings;
 
-        m_asGeometry.AddDescriptorLayoutBindingAS(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::AccelerationStructure));
-        m_asGeometry.AddDescriptorLayoutBindingBuffers(m_descriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR, static_cast<uint32_t>(Bindings::Vertices), static_cast<uint32_t>(Bindings::Indices),
-                                                       static_cast<uint32_t>(Bindings::InstanceInfos), static_cast<uint32_t>(Bindings::MaterialInfos), static_cast<uint32_t>(Bindings::DiffuseTextures),
-                                                       static_cast<uint32_t>(Bindings::BumpTextures));
-        Texture::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(Bindings::ResultImage));
-        UniformBufferObject::AddDescriptorLayoutBinding(m_descriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(Bindings::CameraProperties));
+        m_asGeometry.AddDescriptorLayoutBindingAS(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ResBindings::AccelerationStructure));
+        m_asGeometry.AddDescriptorLayoutBindingBuffers(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR, static_cast<uint32_t>(ResBindings::Vertices),
+                                                       static_cast<uint32_t>(ResBindings::Indices), static_cast<uint32_t>(ResBindings::InstanceInfos), static_cast<uint32_t>(ResBindings::MaterialInfos),
+                                                       static_cast<uint32_t>(ResBindings::DiffuseTextures), static_cast<uint32_t>(ResBindings::BumpTextures));
+        UniformBufferObject::AddDescriptorLayoutBinding(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(ResBindings::CameraProperties));
 
-        auto descLayout = m_descriptorSetLayout.CreateDescriptorLayout(GetDevice());
+        Texture::AddDescriptorLayoutBinding(m_convergenceImageDescriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ConvBindings::ResultImage));
 
-        m_descriptorPool = m_descriptorSetLayout.CreateDescriptorPool(GetDevice(), "RTSceneDescriptorPool");
+        auto rtResourcesDescSetLayout = m_rtResourcesDescriptorSetLayout.CreateDescriptorLayout(GetDevice());
+        auto convergenceDescSetLayout = m_convergenceImageDescriptorSetLayout.CreateDescriptorLayout(GetDevice());
 
-        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{m_descriptorPool.GetHandle(), 1, &descLayout};
-        m_descriptorSet.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().allocateDescriptorSets(descriptorSetAllocateInfo)[0]);
+        std::vector<vk::DescriptorPoolSize> descSetPoolSizes;
+        std::size_t descSetCount = 0;
+        std::vector<vk::DescriptorSetLayout> descSetCreateLayouts;
+
+        descSetCreateLayouts.emplace_back(rtResourcesDescSetLayout);
+        m_rtResourcesDescriptorSetLayout.AddDescriptorPoolSizes(descSetPoolSizes, 1);
+        descSetCount += 1;
+        for (std::size_t i = 0; i < GetNumberOfFramebuffers(); ++i) {
+            descSetCreateLayouts.emplace_back(convergenceDescSetLayout);
+            m_convergenceImageDescriptorSetLayout.AddDescriptorPoolSizes(descSetPoolSizes, 1);
+            descSetCount += 1;
+        }
+
+        m_descriptorPool = vkfw_core::gfx::DescriptorSetLayout::CreateDescriptorPool(GetDevice(), "RTSceneDescriptorPool", descSetPoolSizes, descSetCount);
+
+        vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{m_descriptorPool.GetHandle(), descSetCreateLayouts};
+        auto descSetAllocateResults = GetDevice()->GetHandle().allocateDescriptorSets(descriptorSetAllocateInfo);
+        m_rtResourcesDescriptorSet.SetHandle(GetDevice()->GetHandle(), std::move(descSetAllocateResults[0]));
+        m_convergenceImageDescriptorSets.reserve(GetNumberOfFramebuffers());
+        for (std::size_t i = 0; i < GetNumberOfFramebuffers(); ++i) { m_convergenceImageDescriptorSets.emplace_back(GetDevice()->GetHandle(), fmt::format("RTSceneConvergenceDescriptorSet-{}", i), std::move(descSetAllocateResults[1 + i])); }
 
         {
-            std::vector<vk::DescriptorSetLayout> pipelineDescSets;
-            pipelineDescSets.emplace_back(descLayout);
+            std::array<vk::DescriptorSetLayout, 2> descSetLayouts;
+            descSetLayouts[static_cast<std::size_t>(BindingSets::RTResourcesSet)] = rtResourcesDescSetLayout;
+            descSetLayouts[static_cast<std::size_t>(BindingSets::ConvergenceSet)] = convergenceDescSetLayout;
 
-            vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{vk::PipelineLayoutCreateFlags{},
-                                                                  static_cast<std::uint32_t>(pipelineDescSets.size()),
-                                                                  pipelineDescSets.data()};
+            vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{vk::PipelineLayoutCreateFlags{}, descSetLayouts};
             m_pipelineLayout.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createPipelineLayoutUnique(pipelineLayoutCreateInfo));
         }
     }
@@ -169,31 +207,40 @@ namespace vkfw_app::scene::rt {
         storageTexDesc.m_imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage;
         storageTexDesc.m_memoryProperties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
-        m_storageImage = std::make_unique<vkfw_core::gfx::DeviceTexture>(GetDevice(), "RTSceneStorageImage", storageTexDesc);
-        m_storageImage->InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
-
         {
-            vk::FenceCreateInfo fenceInfo;
-            vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "RTSceneImageTransitionFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
-            auto cmdBuffer =
-                m_storageImage->TransitionLayout(vk::ImageLayout::eGeneral, GetDevice()->GetQueue(0, 0), {}, {}, fence);
-            if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout);
-                r != vk::Result::eSuccess) {
-                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
-                throw std::runtime_error("Could not wait for fence while transitioning layout.");
+            // vk::FenceCreateInfo fenceInfo;
+            // vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "RTSceneImageTransitionFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
+            // auto transitionCmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransitionLayoutCmdBuffer:RTSceneConvergenceImages", "TransitionLayout", GetDevice()->GetQueue(0, 0).GetCommandPool());
+
+            // vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), dstPipelineStage};
+            for (std::size_t i = 0; i < window->GetFramebuffers().size(); ++i) {
+                auto& image = m_rayTracingConvergenceImages.emplace_back(GetDevice(), fmt::format("RTSceneConvergenceImage-{}", i), storageTexDesc, vk::ImageLayout::eUndefined);
+                image.InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
+                // auto accessor = image.GetAccess();
+                // [[maybe_unused]] auto dummy = accessor.Get(access, pipelineStages, vk::ImageLayout::eGeneral, barrier);
+                // image.TransitionLayout(vk::ImageLayout::eGeneral, transitionCmdBuffer);
             }
+            // barrier.Record(transitionCmdBuffer);
+
+            // vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), transitionCmdBuffer, {}, {}, fence);
+
+            // if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
+            //     spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+            //     throw std::runtime_error("Could not wait for fence while transitioning layout.");
+            // }
         }
     }
 
     void RaytracingScene::FillDescriptorSets()
     {
-        using Bindings = RTBindings;
+        using ResBindings = ResSetBindings;
+        using ConvBindings = ConvSetBindings;
 
         std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(static_cast<std::size_t>(Bindings::BindingsSize));
+        descSetWrites.resize(static_cast<std::size_t>(ResBindings::BindingsSize) + m_convergenceImageDescriptorSets.size());
         vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
         vk::DescriptorBufferInfo camrraBufferInfo;
-        vk::DescriptorImageInfo storageImageDesc;
+        std::vector<vk::DescriptorImageInfo> storageImageDescs;
         std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
         std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
         vk::DescriptorBufferInfo instanceBufferInfo;
@@ -202,21 +249,24 @@ namespace vkfw_app::scene::rt {
         std::vector<vk::DescriptorImageInfo> bumpTextureInfos;
 
         m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
-        descSetWrites[static_cast<std::size_t>(Bindings::AccelerationStructure)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::AccelerationStructure), &descSetAccStructure);
-
-        m_storageImage->FillDescriptorImageInfo(storageImageDesc, vkfw_core::gfx::Sampler{});
-        descSetWrites[static_cast<std::size_t>(Bindings::ResultImage)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::ResultImage), &storageImageDesc);
+        descSetWrites[static_cast<std::size_t>(ResBindings::AccelerationStructure)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::AccelerationStructure), &descSetAccStructure);
 
         m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
-        descSetWrites[static_cast<std::size_t>(Bindings::CameraProperties)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::CameraProperties), &camrraBufferInfo);
+        descSetWrites[static_cast<std::size_t>(ResBindings::CameraProperties)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::CameraProperties), &camrraBufferInfo);
 
         m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, materialBufferInfo, diffuseTextureInfos, bumpTextureInfos);
-        descSetWrites[static_cast<std::size_t>(Bindings::Vertices)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Vertices), vboBufferInfos.data());
-        descSetWrites[static_cast<std::size_t>(Bindings::Indices)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::Indices), iboBufferInfos.data());
-        descSetWrites[static_cast<std::size_t>(Bindings::InstanceInfos)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::InstanceInfos), &instanceBufferInfo);
-        descSetWrites[static_cast<std::size_t>(Bindings::MaterialInfos)] = m_descriptorSetLayout.MakeWrite(m_descriptorSet, static_cast<uint32_t>(Bindings::MaterialInfos), &materialBufferInfo);
-        descSetWrites[static_cast<std::size_t>(Bindings::DiffuseTextures)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::DiffuseTextures), diffuseTextureInfos.data());
-        descSetWrites[static_cast<std::size_t>(Bindings::BumpTextures)] = m_descriptorSetLayout.MakeWriteArray(m_descriptorSet, static_cast<uint32_t>(Bindings::BumpTextures), bumpTextureInfos.data());
+        descSetWrites[static_cast<std::size_t>(ResBindings::Vertices)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::Vertices), vboBufferInfos.data());
+        descSetWrites[static_cast<std::size_t>(ResBindings::Indices)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::Indices), iboBufferInfos.data());
+        descSetWrites[static_cast<std::size_t>(ResBindings::InstanceInfos)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::InstanceInfos), &instanceBufferInfo);
+        descSetWrites[static_cast<std::size_t>(ResBindings::MaterialInfos)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::MaterialInfos), &materialBufferInfo);
+        descSetWrites[static_cast<std::size_t>(ResBindings::DiffuseTextures)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::DiffuseTextures), diffuseTextureInfos.data());
+        descSetWrites[static_cast<std::size_t>(ResBindings::BumpTextures)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::BumpTextures), bumpTextureInfos.data());
+
+        storageImageDescs.resize(m_convergenceImageDescriptorSets.size());
+        for (std::size_t i = 0; i < m_convergenceImageDescriptorSets.size(); ++i) {
+            m_rayTracingConvergenceImages[i].FillDescriptorImageInfo(storageImageDescs[i], vkfw_core::gfx::Sampler{}, vk::ImageLayout::eGeneral);
+            descSetWrites[static_cast<std::size_t>(ResBindings::BindingsSize) + i] = m_convergenceImageDescriptorSetLayout.MakeWrite(m_convergenceImageDescriptorSets[i], static_cast<uint32_t>(ConvBindings::ResultImage), &storageImageDescs[i]);
+        }
 
         GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
     }
@@ -226,24 +276,53 @@ namespace vkfw_app::scene::rt {
     {
         auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
-        cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
-        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_descriptorSet.GetHandle(),
-                                     static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+        {
+            vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eRayTracingShaderKHR};
+            m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            auto convergenceImageAccessor = m_rayTracingConvergenceImages[cmdBufferIndex].GetAccess();
+            convergenceImageAccessor.SetAccess(vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eGeneral, barrier);
+            barrier.Record(cmdBuffer);
+        }
 
-        cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_storageImage->GetPixelSize().x, m_storageImage->GetPixelSize().y,
-                                           m_storageImage->GetPixelSize().z);
+        cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
+        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_rtResourcesDescriptorSet.GetHandle(), static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+
+        // TODO: make sure the image has the correct layout here (same as on fill)...
+        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 1, m_convergenceImageDescriptorSets[cmdBufferIndex].GetHandle(), {});
+
+        cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().x,
+                                           m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().y, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().z);
 
         // Prepare current swapchain image as transfer destination
-        window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
-                                                                                 cmdBuffer);
-        m_storageImage->TransitionLayout(vk::ImageLayout::eTransferSrcOptimal, cmdBuffer);
+        // window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
+        //                                                                          cmdBuffer);
 
-        m_storageImage->CopyImageAsync(0, glm::u32vec4{0}, window->GetFramebuffers()[cmdBufferIndex].GetTexture(0), 0,
-                                       glm::u32vec4{0}, m_storageImage->GetSize(), cmdBuffer);
+        // srcAccess, dstAccess srcStage, dstStage;
+        // vk::ImageSubresourceRange subresourceRange{GetValidAspects(), 0, m_mipLevels, 0, m_size.w};
+        // vk::ImageMemoryBarrier transitionBarrier{vk::AccessFlags(), vk::AccessFlags(), m_desc.m_imageLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_image, subresourceRange};
 
-        window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eColorAttachmentOptimal,
-                                                                                 cmdBuffer);
-        m_storageImage->TransitionLayout(vk::ImageLayout::eGeneral, cmdBuffer);
+        // transitionBarrier.srcAccessMask = GetAccessFlagsForLayout(m_desc.m_imageLayout);
+        // transitionBarrier.dstAccessMask = GetAccessFlagsForLayout(newLayout);
+
+        // cmdBuffer.GetHandle().pipelineBarrier(GetStageFlagsForLayout(m_desc.m_imageLayout), GetStageFlagsForLayout(newLayout), vk::DependencyFlags(), nullptr, nullptr, transitionBarrier);
+        // m_desc.m_imageLayout = newLayout;
+
+        // m_rayTracingConvergenceImages[cmdBufferIndex].TransitionLayout(vk::ImageLayout::eTransferSrcOptimal, cmdBuffer);
+
+        m_rayTracingConvergenceImages[cmdBufferIndex].CopyImageAsync(0, glm::u32vec4{0}, window->GetFramebuffers()[cmdBufferIndex].GetTexture(0), 0, glm::u32vec4{0}, m_rayTracingConvergenceImages[cmdBufferIndex].GetSize(), cmdBuffer);
+
+        {
+            vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eColorAttachmentOutput};
+            auto access = window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).GetAccess();
+            access.SetAccess(vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::ImageLayout::eColorAttachmentOptimal, barrier);
+            barrier.Record(cmdBuffer);
+        }
+
+        // here we somehow forget to set the correct image layout in dst image???
+
+        // window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eColorAttachmentOptimal,
+        //                                                                          cmdBuffer);
+        // m_rayTracingConvergenceImages[cmdBufferIndex].TransitionLayout(vk::ImageLayout::eGeneral, cmdBuffer);
     }
 
     void RaytracingScene::FrameMove(float, float, const vkfw_core::VKWindow* window)
