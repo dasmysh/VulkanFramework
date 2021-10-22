@@ -69,6 +69,8 @@ namespace vkfw_app::scene::rt {
 
         /** The texture to store raytracing results. */
         std::vector<vkfw_core::gfx::DeviceTexture> m_rayTracingConvergenceImages;
+        /** The sampler for material textures */
+        vkfw_core::gfx::Sampler m_sampler;
 
         /** Holds the descriptor set layouts for the raytracing pipeline and geometry / material resources. */
         vkfw_core::gfx::DescriptorSetLayout m_rtResourcesDescriptorSetLayout;

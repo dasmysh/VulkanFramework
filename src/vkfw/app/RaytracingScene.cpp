@@ -32,12 +32,17 @@ namespace vkfw_app::scene::rt {
         , m_memGroup{GetDevice(), "RTSceneMemoryGroup", vk::MemoryPropertyFlags()}
         , m_cameraUBO{vkfw_core::gfx::UniformBufferObject::Create<CameraPropertiesBuffer>(GetDevice(), GetNumberOfFramebuffers())}
         , m_asGeometry{GetDevice(), "RTSceneASGeometry", std::vector<std::uint32_t>{{0, 1}}}
+        , m_sampler{GetDevice()->GetHandle(), "RTSceneSampler", vk::UniqueSampler{}}
         , m_rtResourcesDescriptorSetLayout{"RTSceneResourcesDescriptorSetLayout"}
         , m_convergenceImageDescriptorSetLayout{"RTSceneConvergenceDescriptorSet"}
         , m_pipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
         , m_rtResourcesDescriptorSet{GetDevice()->GetHandle(), "RTSceneResourcesDescriptorSet", vk::DescriptorSet{}}
         , m_pipeline{GetDevice(), "RTScenePipeline", {}}
     {
+        vk::SamplerCreateInfo samplerCreateInfo{vk::SamplerCreateFlags(),       vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat,
+                                                vk::SamplerAddressMode::eRepeat};
+        m_sampler.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createSamplerUnique(samplerCreateInfo));
+
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
         m_triangleMaterial.m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
         InitializeScene();
@@ -120,15 +125,13 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.BuildAccelerationStructure();
 
         {
+            // This barrier is needed to get all images into the same layout they will be at the beginning of each command buffer submit.
+            // if we would fill the command buffer each frame (and therefore create barriers containing the actual image layouts) this would not be neccessary.
             vk::FenceCreateInfo fenceInfo;
             vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "TransferImageLayoutsInitialFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
             auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eRayTracingShaderKHR};
             m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
-            for (auto& convImage : m_rayTracingConvergenceImages) {
-                auto convergenceImageAccessor = convImage.GetAccess();
-                convergenceImageAccessor.SetAccess(vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eGeneral, barrier);
-            }
             barrier.Record(cmdBuffer);
             vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {}, fence);
             if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
@@ -201,33 +204,17 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
     {
-        auto& bbDesc = window->GetFramebuffers()[0].GetDescriptor().m_tex[0];
+        auto& bbDesc = window->GetFramebuffers()[0].GetDescriptor().m_attachments[0].m_tex;
         vkfw_core::gfx::TextureDescriptor storageTexDesc{bbDesc.m_bytesPP, bbDesc.m_format, bbDesc.m_samples};
         storageTexDesc.m_imageTiling = vk::ImageTiling::eOptimal;
         storageTexDesc.m_imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage;
         storageTexDesc.m_memoryProperties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
         {
-            // vk::FenceCreateInfo fenceInfo;
-            // vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "RTSceneImageTransitionFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
-            // auto transitionCmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransitionLayoutCmdBuffer:RTSceneConvergenceImages", "TransitionLayout", GetDevice()->GetQueue(0, 0).GetCommandPool());
-
-            // vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), dstPipelineStage};
             for (std::size_t i = 0; i < window->GetFramebuffers().size(); ++i) {
                 auto& image = m_rayTracingConvergenceImages.emplace_back(GetDevice(), fmt::format("RTSceneConvergenceImage-{}", i), storageTexDesc, vk::ImageLayout::eUndefined);
                 image.InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
-                // auto accessor = image.GetAccess();
-                // [[maybe_unused]] auto dummy = accessor.Get(access, pipelineStages, vk::ImageLayout::eGeneral, barrier);
-                // image.TransitionLayout(vk::ImageLayout::eGeneral, transitionCmdBuffer);
             }
-            // barrier.Record(transitionCmdBuffer);
-
-            // vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), transitionCmdBuffer, {}, {}, fence);
-
-            // if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
-            //     spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
-            //     throw std::runtime_error("Could not wait for fence while transitioning layout.");
-            // }
         }
     }
 
@@ -236,39 +223,41 @@ namespace vkfw_app::scene::rt {
         using ResBindings = ResSetBindings;
         using ConvBindings = ConvSetBindings;
 
-        std::vector<vk::WriteDescriptorSet> descSetWrites;
-        descSetWrites.resize(static_cast<std::size_t>(ResBindings::BindingsSize) + m_convergenceImageDescriptorSets.size());
-        vk::WriteDescriptorSetAccelerationStructureKHR descSetAccStructure;
-        vk::DescriptorBufferInfo camrraBufferInfo;
-        std::vector<vk::DescriptorImageInfo> storageImageDescs;
-        std::vector<vk::DescriptorBufferInfo> vboBufferInfos;
-        std::vector<vk::DescriptorBufferInfo> iboBufferInfos;
-        vk::DescriptorBufferInfo instanceBufferInfo;
-        vk::DescriptorBufferInfo materialBufferInfo;
-        std::vector<vk::DescriptorImageInfo> diffuseTextureInfos;
-        std::vector<vk::DescriptorImageInfo> bumpTextureInfos;
+        std::array<vkfw_core::gfx::AccelerationStructureInfo, 1> accelerationStructure;
+        std::array<vkfw_core::gfx::BufferRange, 1> cameraBufferRange;
+        std::vector<vkfw_core::gfx::BufferRange> vboBufferRanges;
+        std::vector<vkfw_core::gfx::BufferRange> iboBufferRanges;
+        std::array<vkfw_core::gfx::BufferRange, 1> instanceBufferRange;
+        std::array<vkfw_core::gfx::BufferRange, 1> materialBufferRange;
+        std::vector<vkfw_core::gfx::Texture*> diffuseTextures;
+        std::vector<vkfw_core::gfx::Texture*> bumpMaps;
 
-        m_asGeometry.FillDescriptorAccelerationStructureInfo(descSetAccStructure);
-        descSetWrites[static_cast<std::size_t>(ResBindings::AccelerationStructure)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::AccelerationStructure), &descSetAccStructure);
+        m_rtResourcesDescriptorSet.InitializeWrites(m_rtResourcesDescriptorSetLayout);
 
-        m_cameraUBO.FillDescriptorBufferInfo(camrraBufferInfo);
-        descSetWrites[static_cast<std::size_t>(ResBindings::CameraProperties)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::CameraProperties), &camrraBufferInfo);
+        m_asGeometry.FillAccelerationStructureInfo(accelerationStructure[0]);
+        m_rtResourcesDescriptorSet.WriteAccelerationStructureDescriptor(static_cast<uint32_t>(ResBindings::AccelerationStructure), 0, accelerationStructure);
 
-        m_asGeometry.FillDescriptorBuffersInfo(vboBufferInfos, iboBufferInfos, instanceBufferInfo, materialBufferInfo, diffuseTextureInfos, bumpTextureInfos);
-        descSetWrites[static_cast<std::size_t>(ResBindings::Vertices)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::Vertices), vboBufferInfos.data());
-        descSetWrites[static_cast<std::size_t>(ResBindings::Indices)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::Indices), iboBufferInfos.data());
-        descSetWrites[static_cast<std::size_t>(ResBindings::InstanceInfos)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::InstanceInfos), &instanceBufferInfo);
-        descSetWrites[static_cast<std::size_t>(ResBindings::MaterialInfos)] = m_rtResourcesDescriptorSetLayout.MakeWrite(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::MaterialInfos), &materialBufferInfo);
-        descSetWrites[static_cast<std::size_t>(ResBindings::DiffuseTextures)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::DiffuseTextures), diffuseTextureInfos.data());
-        descSetWrites[static_cast<std::size_t>(ResBindings::BumpTextures)] = m_rtResourcesDescriptorSetLayout.MakeWriteArray(m_rtResourcesDescriptorSet, static_cast<uint32_t>(ResBindings::BumpTextures), bumpTextureInfos.data());
+        m_cameraUBO.FillBufferRange(cameraBufferRange[0]);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::CameraProperties), 0, cameraBufferRange, vk::AccessFlagBits::eShaderRead);
 
-        storageImageDescs.resize(m_convergenceImageDescriptorSets.size());
+        m_asGeometry.FillGeometryInfo(vboBufferRanges, iboBufferRanges, instanceBufferRange[0]);
+        m_asGeometry.FillMaterialInfo(materialBufferRange[0], diffuseTextures, bumpMaps);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Vertices), 0, vboBufferRanges, vk::AccessFlagBits::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Indices), 0, iboBufferRanges, vk::AccessFlagBits::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::InstanceInfos), 0, instanceBufferRange, vk::AccessFlagBits::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::MaterialInfos), 0, materialBufferRange, vk::AccessFlagBits::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::DiffuseTextures), 0, diffuseTextures, m_sampler, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
+        m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::BumpTextures), 0, bumpMaps, m_sampler, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        m_rtResourcesDescriptorSet.FinalizeWrite(GetDevice());
+
         for (std::size_t i = 0; i < m_convergenceImageDescriptorSets.size(); ++i) {
-            m_rayTracingConvergenceImages[i].FillDescriptorImageInfo(storageImageDescs[i], vkfw_core::gfx::Sampler{}, vk::ImageLayout::eGeneral);
-            descSetWrites[static_cast<std::size_t>(ResBindings::BindingsSize) + i] = m_convergenceImageDescriptorSetLayout.MakeWrite(m_convergenceImageDescriptorSets[i], static_cast<uint32_t>(ConvBindings::ResultImage), &storageImageDescs[i]);
+            m_convergenceImageDescriptorSets[i].InitializeWrites(m_convergenceImageDescriptorSetLayout);
+            std::array<vkfw_core::gfx::Texture*, 1> convergenceImage = {&m_rayTracingConvergenceImages[i]};
+            m_convergenceImageDescriptorSets[i].WriteImageDescriptor(static_cast<uint32_t>(ConvBindings::ResultImage), 0, convergenceImage, vkfw_core::gfx::Sampler{}, vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite,
+                                                                     vk::ImageLayout::eGeneral);
+            m_convergenceImageDescriptorSets[i].FinalizeWrite(GetDevice());
         }
-
-        GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
     }
 
     void RaytracingScene::UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
@@ -277,37 +266,19 @@ namespace vkfw_app::scene::rt {
         auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
         {
+            // TODO: is this barrier needed???
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eRayTracingShaderKHR};
-            m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
             auto convergenceImageAccessor = m_rayTracingConvergenceImages[cmdBufferIndex].GetAccess();
             convergenceImageAccessor.SetAccess(vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eGeneral, barrier);
             barrier.Record(cmdBuffer);
         }
 
         cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
-        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 0, m_rtResourcesDescriptorSet.GetHandle(), static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
-
-        // TODO: make sure the image has the correct layout here (same as on fill)...
-        cmdBuffer.GetHandle().bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout.GetHandle(), 1, m_convergenceImageDescriptorSets[cmdBufferIndex].GetHandle(), {});
+        m_rtResourcesDescriptorSet.Bind(GetDevice(), cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+        m_convergenceImageDescriptorSets[cmdBufferIndex].Bind(GetDevice(), cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 1);
 
         cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().x,
                                            m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().y, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().z);
-
-        // Prepare current swapchain image as transfer destination
-        // window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eTransferDstOptimal,
-        //                                                                          cmdBuffer);
-
-        // srcAccess, dstAccess srcStage, dstStage;
-        // vk::ImageSubresourceRange subresourceRange{GetValidAspects(), 0, m_mipLevels, 0, m_size.w};
-        // vk::ImageMemoryBarrier transitionBarrier{vk::AccessFlags(), vk::AccessFlags(), m_desc.m_imageLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_image, subresourceRange};
-
-        // transitionBarrier.srcAccessMask = GetAccessFlagsForLayout(m_desc.m_imageLayout);
-        // transitionBarrier.dstAccessMask = GetAccessFlagsForLayout(newLayout);
-
-        // cmdBuffer.GetHandle().pipelineBarrier(GetStageFlagsForLayout(m_desc.m_imageLayout), GetStageFlagsForLayout(newLayout), vk::DependencyFlags(), nullptr, nullptr, transitionBarrier);
-        // m_desc.m_imageLayout = newLayout;
-
-        // m_rayTracingConvergenceImages[cmdBufferIndex].TransitionLayout(vk::ImageLayout::eTransferSrcOptimal, cmdBuffer);
 
         m_rayTracingConvergenceImages[cmdBufferIndex].CopyImageAsync(0, glm::u32vec4{0}, window->GetFramebuffers()[cmdBufferIndex].GetTexture(0), 0, glm::u32vec4{0}, m_rayTracingConvergenceImages[cmdBufferIndex].GetSize(), cmdBuffer);
 
@@ -317,12 +288,6 @@ namespace vkfw_app::scene::rt {
             access.SetAccess(vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::ImageLayout::eColorAttachmentOptimal, barrier);
             barrier.Record(cmdBuffer);
         }
-
-        // here we somehow forget to set the correct image layout in dst image???
-
-        // window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).TransitionLayout(vk::ImageLayout::eColorAttachmentOptimal,
-        //                                                                          cmdBuffer);
-        // m_rayTracingConvergenceImages[cmdBufferIndex].TransitionLayout(vk::ImageLayout::eGeneral, cmdBuffer);
     }
 
     void RaytracingScene::FrameMove(float, float, const vkfw_core::VKWindow* window)
