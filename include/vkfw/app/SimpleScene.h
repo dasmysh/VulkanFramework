@@ -44,8 +44,7 @@ namespace vkfw_app::scene::simple {
         ~SimpleScene();
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
-        void UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
-                                 vkfw_core::VKWindow* window) override;
+        void RenderScene(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
 

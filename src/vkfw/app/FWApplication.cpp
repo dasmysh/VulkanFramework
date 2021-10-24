@@ -129,12 +129,13 @@ namespace vkfw_app {
             [this, window](const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
                 switch (m_scene_to_render) {
                 case 0: {
-                    window->BeginSwapchainRenderPass(cmdBufferIndex);
-                    m_simple_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window);
-                    window->EndSwapchainRenderPass(cmdBufferIndex);
+                    m_simple_scene.RenderScene(cmdBuffer, cmdBufferIndex, window);
                     break;
                 }
-                case 1: m_rt_scene.UpdateCommandBuffer(cmdBuffer, cmdBufferIndex, window); break;
+                case 1: {
+                    m_rt_scene.RenderScene(cmdBuffer, cmdBufferIndex, window);
+                    break;
+                }
                 default: break;
                 }
             });

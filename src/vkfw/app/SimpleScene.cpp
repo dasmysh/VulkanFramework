@@ -28,9 +28,9 @@ namespace vkfw_app::scene::simple {
         , m_worldMatrixDescriptorSetLayout{"SimpleSceneWorldMatrixDescriptorSetLayout"}
         , m_imageSamplerDescriptorSetLayout{"SimpleSceneImageSamplerDescriptorSetLayout"}
         , m_pipelineLayout{GetDevice()->GetHandle(), "SimpleScenePipelineLayout", vk::UniquePipelineLayout{}}
-        , m_cameraMatrixDescriptorSet{GetDevice()->GetHandle(), "SimpleSceneCameraDescriptorSet", vk::DescriptorSet{}}
-        , m_worldMatrixDescriptorSet{GetDevice()->GetHandle(), "SimpleSceneWorldMatrixDescriptorSet", vk::DescriptorSet{}}
-        , m_imageSamplerDescriptorSet{GetDevice()->GetHandle(), "SimpleSceneImageSamplerDescriptorSet", vk::DescriptorSet{}}
+        , m_cameraMatrixDescriptorSet{GetDevice(), "SimpleSceneCameraDescriptorSet", vk::DescriptorSet{}}
+        , m_worldMatrixDescriptorSet{GetDevice(), "SimpleSceneWorldMatrixDescriptorSet", vk::DescriptorSet{}}
+        , m_imageSamplerDescriptorSet{GetDevice(), "SimpleSceneImageSamplerDescriptorSet", vk::DescriptorSet{}}
         , m_vertices{{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
                                          {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
                                          {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
@@ -76,32 +76,33 @@ namespace vkfw_app::scene::simple {
         m_demoTransparentPipeline->CreatePipeline(true, window->GetRenderPass(), 0, m_pipelineLayout);
     }
 
-    void SimpleScene::UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
-                                          vkfw_core::VKWindow*)
+    void SimpleScene::RenderScene(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window)
     {
         using BufferReference = vkfw_core::gfx::RenderElement::BufferReference;
         using UBOBinding = vkfw_core::gfx::RenderElement::UBOBinding;
         using DescSetBinding = vkfw_core::gfx::RenderElement::DescSetBinding;
         vk::DeviceSize offset = 0;
 
-        vkfw_core::gfx::RenderList renderList{
-            GetCamera(), UBOBinding{&m_cameraMatrixDescriptorSet, 2,
-                                    static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize())}};
-        renderList.SetCurrentPipeline(m_pipelineLayout, *m_demoPipeline,
-                                      *m_demoTransparentPipeline);
+        vkfw_core::gfx::RenderList renderList{GetCamera(), UBOBinding{&m_cameraMatrixDescriptorSet, 2, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize())}};
+        renderList.SetCurrentPipeline(m_pipelineLayout, *m_demoPipeline, *m_demoTransparentPipeline);
 
         auto planesWorldAABB = m_planesAABB.NewFromTransform(m_planesWorldMatrix);
-        auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(m_indices.size()), 1, 0, 0, 0,
-                                                    GetCamera()->GetViewMatrix(), planesWorldAABB);
+        auto& re = renderList.AddTransparentElement(static_cast<std::uint32_t>(m_indices.size()), 1, 0, 0, 0, GetCamera()->GetViewMatrix(), planesWorldAABB);
         re.BindVertexBuffer(BufferReference{m_memGroup.GetBuffer(m_completeBufferIdx), offset});
         re.BindIndexBuffer(BufferReference{m_memGroup.GetBuffer(m_completeBufferIdx), vkfw_core::byteSizeOf(m_vertices)});
-        re.BindWorldMatricesUBO(UBOBinding{&m_worldMatrixDescriptorSet, 0,
-                                           static_cast<std::uint32_t>(cmdBufferIndex * m_worldUBO.GetInstanceSize())});
+        re.BindWorldMatricesUBO(UBOBinding{&m_worldMatrixDescriptorSet, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_worldUBO.GetInstanceSize())});
         re.BindDescriptorSet(DescSetBinding{&m_imageSamplerDescriptorSet, 1});
 
         m_mesh->GetDrawElements(m_meshWorldMatrix, *GetCamera(), cmdBufferIndex, renderList);
 
+        std::vector<vkfw_core::gfx::DescriptorSet*> descriptorSets;
+        renderList.AccessBarriers(descriptorSets);
+
+        window->BeginSwapchainRenderPass(cmdBufferIndex, descriptorSets);
+
         renderList.Render(cmdBuffer);
+
+        window->EndSwapchainRenderPass(cmdBufferIndex);
     }
 
     void SimpleScene::FrameMove(float time, float, const vkfw_core::VKWindow* window)
@@ -217,8 +218,7 @@ namespace vkfw_app::scene::simple {
             vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "TransferImageLayoutsInitialFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
             auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eFragmentShader};
-            auto access = m_demoTexture->GetTexture().GetAccess();
-            access.SetAccess(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eFragmentShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            m_demoTexture->GetTexture().AccessBarrier(vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eFragmentShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
             barrier.Record(cmdBuffer);
             vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {}, fence);
             if (auto r = GetDevice()->GetHandle().waitForFences({fence.GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
@@ -283,21 +283,22 @@ namespace vkfw_app::scene::simple {
         }
 
         {
-            std::vector<vk::WriteDescriptorSet> descSetWrites;
-            descSetWrites.resize(3);
-            std::array<vk::DescriptorBufferInfo, 2> descBufferInfos;
-            vk::DescriptorImageInfo descImageInfo;
+            std::array<vkfw_core::gfx::BufferRange, 1> worldUBOBufferRange, cameraUBOBufferRange;
+            m_worldUBO.FillBufferRange(worldUBOBufferRange[0]);
+            m_cameraUBO.FillBufferRange(cameraUBOBufferRange[0]);
 
-            m_worldUBO.FillDescriptorBufferInfo(descBufferInfos[0]);
-            descSetWrites[0] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_worldMatrixDescriptorSet, 0, &descBufferInfos[0]);
+            m_worldMatrixDescriptorSet.InitializeWrites(GetDevice(), m_worldMatrixDescriptorSetLayout);
+            m_worldMatrixDescriptorSet.WriteBufferDescriptor(0, 0, worldUBOBufferRange, vk::AccessFlagBits::eShaderRead);
+            m_worldMatrixDescriptorSet.FinalizeWrite(GetDevice());
 
-            m_demoTexture->GetTexture().FillDescriptorImageInfo(descImageInfo, m_demoSampler, vk::ImageLayout::eShaderReadOnlyOptimal);
-            descSetWrites[1] = m_imageSamplerDescriptorSetLayout.MakeWrite(m_imageSamplerDescriptorSet, 0, &descImageInfo);
+            std::array<vkfw_core::gfx::Texture*, 1> demoTextureArray = {&m_demoTexture->GetTexture()};
+            m_imageSamplerDescriptorSet.InitializeWrites(GetDevice(), m_imageSamplerDescriptorSetLayout);
+            m_imageSamplerDescriptorSet.WriteImageDescriptor(0, 0, demoTextureArray, m_demoSampler, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
+            m_imageSamplerDescriptorSet.FinalizeWrite(GetDevice());
 
-            m_cameraUBO.FillDescriptorBufferInfo(descBufferInfos[1]);
-            descSetWrites[2] = m_worldMatrixDescriptorSetLayout.MakeWrite(m_cameraMatrixDescriptorSet, static_cast<std::uint32_t>(mesh_sample::MeshBindings::CameraProperties), &descBufferInfos[1]);
-
-            GetDevice()->GetHandle().updateDescriptorSets(descSetWrites, nullptr);
+            m_cameraMatrixDescriptorSet.InitializeWrites(GetDevice(), m_worldMatrixDescriptorSetLayout);
+            m_cameraMatrixDescriptorSet.WriteBufferDescriptor(static_cast<std::uint32_t>(mesh_sample::MeshBindings::CameraProperties), 0, cameraUBOBufferRange, vk::AccessFlagBits::eShaderRead);
+            m_cameraMatrixDescriptorSet.FinalizeWrite(GetDevice());
         }
     }
 

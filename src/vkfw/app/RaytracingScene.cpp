@@ -36,7 +36,7 @@ namespace vkfw_app::scene::rt {
         , m_rtResourcesDescriptorSetLayout{"RTSceneResourcesDescriptorSetLayout"}
         , m_convergenceImageDescriptorSetLayout{"RTSceneConvergenceDescriptorSet"}
         , m_pipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
-        , m_rtResourcesDescriptorSet{GetDevice()->GetHandle(), "RTSceneResourcesDescriptorSet", vk::DescriptorSet{}}
+        , m_rtResourcesDescriptorSet{GetDevice(), "RTSceneResourcesDescriptorSet", vk::DescriptorSet{}}
         , m_pipeline{GetDevice(), "RTScenePipeline", {}}
     {
         vk::SamplerCreateInfo samplerCreateInfo{vk::SamplerCreateFlags(),       vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eNearest, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat,
@@ -178,7 +178,7 @@ namespace vkfw_app::scene::rt {
         auto descSetAllocateResults = GetDevice()->GetHandle().allocateDescriptorSets(descriptorSetAllocateInfo);
         m_rtResourcesDescriptorSet.SetHandle(GetDevice()->GetHandle(), std::move(descSetAllocateResults[0]));
         m_convergenceImageDescriptorSets.reserve(GetNumberOfFramebuffers());
-        for (std::size_t i = 0; i < GetNumberOfFramebuffers(); ++i) { m_convergenceImageDescriptorSets.emplace_back(GetDevice()->GetHandle(), fmt::format("RTSceneConvergenceDescriptorSet-{}", i), std::move(descSetAllocateResults[1 + i])); }
+        for (std::size_t i = 0; i < GetNumberOfFramebuffers(); ++i) { m_convergenceImageDescriptorSets.emplace_back(GetDevice(), fmt::format("RTSceneConvergenceDescriptorSet-{}", i), std::move(descSetAllocateResults[1 + i])); }
 
         {
             std::array<vk::DescriptorSetLayout, 2> descSetLayouts;
@@ -232,7 +232,7 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::Texture*> diffuseTextures;
         std::vector<vkfw_core::gfx::Texture*> bumpMaps;
 
-        m_rtResourcesDescriptorSet.InitializeWrites(m_rtResourcesDescriptorSetLayout);
+        m_rtResourcesDescriptorSet.InitializeWrites(GetDevice(), m_rtResourcesDescriptorSetLayout);
 
         m_asGeometry.FillAccelerationStructureInfo(accelerationStructure[0]);
         m_rtResourcesDescriptorSet.WriteAccelerationStructureDescriptor(static_cast<uint32_t>(ResBindings::AccelerationStructure), 0, accelerationStructure);
@@ -252,7 +252,7 @@ namespace vkfw_app::scene::rt {
         m_rtResourcesDescriptorSet.FinalizeWrite(GetDevice());
 
         for (std::size_t i = 0; i < m_convergenceImageDescriptorSets.size(); ++i) {
-            m_convergenceImageDescriptorSets[i].InitializeWrites(m_convergenceImageDescriptorSetLayout);
+            m_convergenceImageDescriptorSets[i].InitializeWrites(GetDevice(), m_convergenceImageDescriptorSetLayout);
             std::array<vkfw_core::gfx::Texture*, 1> convergenceImage = {&m_rayTracingConvergenceImages[i]};
             m_convergenceImageDescriptorSets[i].WriteImageDescriptor(static_cast<uint32_t>(ConvBindings::ResultImage), 0, convergenceImage, vkfw_core::gfx::Sampler{}, vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite,
                                                                      vk::ImageLayout::eGeneral);
@@ -260,22 +260,13 @@ namespace vkfw_app::scene::rt {
         }
     }
 
-    void RaytracingScene::UpdateCommandBuffer(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
-                                              vkfw_core::VKWindow* window)
+    void RaytracingScene::RenderScene(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window)
     {
         auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
-        {
-            // TODO: is this barrier needed???
-            vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eRayTracingShaderKHR};
-            auto convergenceImageAccessor = m_rayTracingConvergenceImages[cmdBufferIndex].GetAccess();
-            convergenceImageAccessor.SetAccess(vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::ImageLayout::eGeneral, barrier);
-            barrier.Record(cmdBuffer);
-        }
-
         cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
-        m_rtResourcesDescriptorSet.Bind(GetDevice(), cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
-        m_convergenceImageDescriptorSets[cmdBufferIndex].Bind(GetDevice(), cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 1);
+        m_rtResourcesDescriptorSet.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
+        m_convergenceImageDescriptorSets[cmdBufferIndex].Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 1);
 
         cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().x,
                                            m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().y, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().z);
@@ -284,10 +275,12 @@ namespace vkfw_app::scene::rt {
 
         {
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice(), vk::PipelineStageFlagBits::eColorAttachmentOutput};
-            auto access = window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).GetAccess();
-            access.SetAccess(vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::ImageLayout::eColorAttachmentOptimal, barrier);
+            window->GetFramebuffers()[cmdBufferIndex].GetTexture(0).AccessBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::ImageLayout::eColorAttachmentOptimal, barrier);
             barrier.Record(cmdBuffer);
         }
+
+        // window->BeginSwapchainRenderPass(cmdBufferIndex);
+        // window->EndSwapchainRenderPass(cmdBufferIndex);
     }
 
     void RaytracingScene::FrameMove(float, float, const vkfw_core::VKWindow* window)
