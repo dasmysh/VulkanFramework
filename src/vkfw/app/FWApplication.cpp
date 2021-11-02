@@ -126,7 +126,7 @@ namespace vkfw_app {
         }
 
         window->UpdatePrimaryCommandBuffers(
-            [this, window](const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
+            [this, window](vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex) {
                 switch (m_scene_to_render) {
                 case 0: {
                     m_simple_scene.RenderScene(cmdBuffer, cmdBufferIndex, window);

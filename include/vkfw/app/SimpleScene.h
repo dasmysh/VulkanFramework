@@ -20,6 +20,7 @@
 #include <gfx/vk/wrappers/DescriptorSet.h>
 #include <gfx/vk/wrappers/DescriptorPool.h>
 #include <gfx/vk/wrappers/PipelineLayout.h>
+#include <gfx/vk/wrappers/VertexInputResources.h>
 #include <core/math/primitives.h>
 
 #include <glm/mat4x4.hpp>
@@ -44,7 +45,7 @@ namespace vkfw_app::scene::simple {
         ~SimpleScene();
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
-        void RenderScene(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
+        void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
 
@@ -76,6 +77,8 @@ namespace vkfw_app::scene::simple {
         vkfw_core::gfx::MemoryGroup m_memGroup;
         /** Holds the memory group index of the complete buffer. */
         unsigned int m_completeBufferIdx = vkfw_core::gfx::MemoryGroup::INVALID_INDEX;
+        /** Hold the vertex input information. */
+        vkfw_core::gfx::VertexInputResources m_vertexInputResources;
 
         /** The world matrix of the two rotating planes. */
         glm::mat4 m_planesWorldMatrix;

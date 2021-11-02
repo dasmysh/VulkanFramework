@@ -37,7 +37,7 @@ namespace vkfw_app::scene::rt {
                     std::size_t num_framebuffers);
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
-        void RenderScene(const vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
+        void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
         void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
         bool RenderGUI(const vkfw_core::VKWindow* window) override;

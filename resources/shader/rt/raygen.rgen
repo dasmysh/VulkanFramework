@@ -1,6 +1,8 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
+#define RAYGEN
+
 #include "ray.glsl"
 #include "../core/random.glsl"
 #include "../core/sampling.glsl"
@@ -8,20 +10,21 @@
 
 layout(binding = AccelerationStructure, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = ResultImage, set = 0, rgba8) uniform image2D image;
-layout(binding = CameraProperties, set = 0) uniform CameraPropertiesBuffer
+layout(binding = CameraProperties, set = 0) uniform CameraPropertiesBuffer1
 {
     mat4 viewInverse;
     mat4 projInverse;
-} cam;
+} cam2;
 
-layout(location = 0) rayPayloadEXT RayPayload hitValue;
+// layout(location = 0) rayPayloadEXT RayPayload hitValue;
 
 const float PI = 3.14159265359;
 const float aoRayCount = 64;
 
 vec3 randomPointOnHemisphere(vec3 seed) {
     vec2 p = vec2(0.0f);
-    vec2 u = vec2(random(seed), random(vec3(seed.xy, seed.z + 0.5f / float(aoRayCount))));
+    // vec2 u = vec2(random(seed), random(vec3(seed.xy, seed.z + 0.5f / float(aoRayCount))));
+    vec2 u = vec2(0.0f);
     vec2 uOffset = 2.0f * u - vec2(1.0f);
 
     if (uOffset.x != 0 || uOffset.y != 0) {
@@ -87,11 +90,14 @@ void main()
 
         vec3 x, y, z;
         compute_default_basis(normal, x, y, z);
-        uint  seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, 23);
+        // uint  seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, 23);
+        uint  seed = 1;
 
         for (int i = 0; i < int(aoRayCount); ++i) {
-            float r1 = radinv2(seed);
-            float r2 = radinv_fl(seed, 3);
+            // float r1 = radinv2(seed);
+            float r1 = 0.0f;
+            // float r2 = radinv_fl(seed, 3);
+            float r2 = 0.0f;
             float sq = sqrt(1.0 - r2);
             float randPdf = 1.0f;
 

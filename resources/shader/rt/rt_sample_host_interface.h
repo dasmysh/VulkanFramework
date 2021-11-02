@@ -19,12 +19,12 @@ BEGIN_CONSTANTS(ResSetBindings)
     MaterialInfos = 5,
     DiffuseTextures = 6,
     BumpTextures = 7,
-    BindingsSize = 8
+    ResSetBindingsSize = 8
 END_CONSTANTS()
 
 BEGIN_CONSTANTS(ConvSetBindings)
     ResultImage = 0,
-    BindingsSize = 1
+    ConvSetBindingsSize = 1
 END_CONSTANTS()
 
 struct RayTracingVertex
