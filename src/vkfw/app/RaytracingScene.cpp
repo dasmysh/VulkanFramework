@@ -91,7 +91,7 @@ namespace vkfw_app::scene::rt {
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, m_cameraProperties);
 
-        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(0, 0)};
+        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(1, 0)};
         m_memGroup.FinalizeDeviceGroup();
         m_memGroup.TransferData(transfer);
         transfer.FinishTransfer();
@@ -127,8 +127,6 @@ namespace vkfw_app::scene::rt {
         {
             // This barrier is needed to get all images into the same layout they will be at the beginning of each command buffer submit.
             // if we would fill the command buffer each frame (and therefore create barriers containing the actual image layouts) this would not be neccessary.
-            // vk::FenceCreateInfo fenceInfo;
-            // vkfw_core::gfx::Fence fence{GetDevice()->GetHandle(), "TransferImageLayoutsInitialFence", GetDevice()->GetHandle().createFenceUnique(fenceInfo)};
             auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice()};
             m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eRayTracingShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
@@ -235,7 +233,6 @@ namespace vkfw_app::scene::rt {
         m_rtResourcesDescriptorSet.InitializeWrites(GetDevice(), m_rtResourcesDescriptorSetLayout);
 
         accelerationStructure[0] = &m_asGeometry;
-        // m_asGeometry.FillAccelerationStructureInfo(accelerationStructure[0]);
         m_rtResourcesDescriptorSet.WriteAccelerationStructureDescriptor(static_cast<uint32_t>(ResBindings::AccelerationStructure), 0, accelerationStructure);
 
         m_cameraUBO.FillBufferRange(cameraBufferRange[0]);
@@ -267,7 +264,6 @@ namespace vkfw_app::scene::rt {
         auto& sbtDeviceAddressRegions = m_pipeline.GetSBTDeviceAddresses();
 
         m_pipeline.BindPipeline(cmdBuffer);
-        // cmdBuffer.GetHandle().bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline.GetHandle());
         m_rtResourcesDescriptorSet.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
         m_convergenceImageDescriptorSets[cmdBufferIndex].Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_pipelineLayout, 1);
 
@@ -300,8 +296,6 @@ namespace vkfw_app::scene::rt {
             QUEUE_REGION(transferQueue, "FrameMove");
             std::array<vk::Semaphore, 1> transferSemaphore = {window->GetDataAvailableSemaphore().GetHandle()};
             m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, {}, transferSemaphore);
-            // vk::SubmitInfo submitInfo{0, nullptr, nullptr, 1, m_transferCommandBuffers[uboIndex].GetHandlePtr(), 1, transferSemaphore.GetHandlePtr()};
-            // transferQueue.Submit(submitInfo, nullptr);
 
         }
     }
