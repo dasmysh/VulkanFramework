@@ -15,7 +15,9 @@
 #include <gfx/vk/pipeline/DescriptorSetLayout.h>
 #include <gfx/vk/wrappers/PipelineLayout.h>
 #include <gfx/vk/pipeline/RayTracingPipeline.h>
+#include <gfx/renderer/FullscreenQuad.h>
 #include "rt/rt_sample_host_interface.h"
+#include "rt/ao/ao_composite_shader_interface.h"
 
 #include <glm/mat4x4.hpp>
 
@@ -76,7 +78,7 @@ namespace vkfw_app::scene::rt {
         /** Holds the descriptor set layouts for the convergence image. */
         vkfw_core::gfx::DescriptorSetLayout m_convergenceImageDescriptorSetLayout;
         /** Holds the pipeline layout for raytracing. */
-        vkfw_core::gfx::PipelineLayout m_pipelineLayout;
+        vkfw_core::gfx::PipelineLayout m_rtPipelineLayout;
         /** The descriptor pool. */
         vkfw_core::gfx::DescriptorPool m_descriptorPool;
         /** The descriptor set for the ray tracing resources. */
@@ -85,7 +87,18 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::DescriptorSet> m_convergenceImageDescriptorSets;
 
         /** The raytracing pipeline. */
-        vkfw_core::gfx::RayTracingPipeline m_pipeline;
+        vkfw_core::gfx::RayTracingPipeline m_rtPipeline;
+
+        /** Holds the texture sampler for the accumulated result. */
+        vkfw_core::gfx::Sampler m_accumulatedResultSampler;
+        /** Holds the descriptor set layout for the accumulated result image. */
+        vkfw_core::gfx::DescriptorSetLayout m_accumulatedResultImageDescriptorSetLayout;
+        /** The descriptor set for the accumulated image. */
+        std::vector<vkfw_core::gfx::DescriptorSet> m_accumulatedResultImageDescriptorSets;
+        /** Holds the pipeline layout for compositing. */
+        vkfw_core::gfx::PipelineLayout m_compositingPipelineLayout;
+        /** The fullscreen quad for compositing. */
+        vkfw_core::gfx::FullscreenQuad m_compositingFullscreenQuad;
 
         vkfw_core::gfx::MaterialInfo m_triangleMaterial;
         /** Holds the AssImp demo models. */

@@ -2,9 +2,9 @@
 #extension GL_EXT_ray_tracing : require
 #define RAYGEN
 
-#include "rt_sample_host_interface.h"
-#include "../core/random.glsl"
-#include "rayTraversal.glsl"
+#include "../rt_sample_host_interface.h"
+#include "../../core/random.glsl"
+#include "../rayTraversal.glsl"
 
 layout(binding = ResultImage, set = ConvergenceSet, rgba8) uniform image2D image;
 
@@ -102,7 +102,6 @@ void main()
         vec3 s, t;
         compute_default_basis(n, s, t);
         vec3 p = origin.xyz;
-        // resultColor = vec4(normal, 1.0f);
 
         for (int i = 0; i < int(aoRayCount); ++i) {
             vec3 sample_direction;
@@ -121,7 +120,6 @@ void main()
             vec3 hitNormal, rayOrigin = p, rayDirection = sample_direction;
             if (!findNextNonSpecularHit(rayOrigin, rayDirection, hitNormal, cam.maxRange)) {
                 resultColor += vec4(vec3(dot(sample_direction, n) / (M_PI * pdf)), 1.0f);
-                // resultColor += vec4(vec3(0.3f, 0, 0), 1.0f);
             }
             else
             {

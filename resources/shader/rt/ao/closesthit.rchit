@@ -3,8 +3,8 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "ray.glsl"
-#include "rt_sample_host_interface.h"
+#include "../ray.glsl"
+#include "../rt_sample_host_interface.h"
 
 hitAttributeEXT vec2 attribs;
 
@@ -23,6 +23,8 @@ void main()
     uint indexOffset = instances.i[gl_InstanceID].indexOffset;
     uint materialIndex = instances.i[gl_InstanceID].materialIndex;
     uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
+    mat4 transform = instances.i[gl_InstanceID].transform;
+    mat4 transformInverseTranspose = instances.i[gl_InstanceID].transformInverseTranspose;
 
     ivec3 ind = ivec3(indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 0],
                       indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 1],
@@ -32,11 +34,15 @@ void main()
     RayTracingVertex v1 = vertices[nonuniformEXT(bufferIndex)].v[ind.y];
     RayTracingVertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
 
-    vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
-    float alpha = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).a;
+    vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z;
+    normal = normalize(vec3(transformInverseTranspose * vec4(normal, 0.0)));
 
-    if (alpha == 0.0f)
-    {
-        ignoreIntersectionEXT;
-    }
+    vec3 worldPos = v0.position * barycentricCoords.x + v1.position * barycentricCoords.y + v2.position * barycentricCoords.z;
+    worldPos = vec3(transform * vec4(worldPos, 1.0));
+
+    vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
+
+    hitValue.rayOrigin = worldPos;
+    hitValue.attenuation = normal;
+    hitValue.done += 1;
 }
