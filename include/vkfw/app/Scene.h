@@ -33,7 +33,7 @@ namespace vkfw_app::scene {
 
         virtual void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) = 0;
         virtual void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) = 0;
-        virtual void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) = 0;
+        virtual void FrameMove(float time, float elapsed, bool cameraChanged, const vkfw_core::VKWindow* window) = 0;
         virtual void RenderScene(const vkfw_core::VKWindow* window) = 0;
         virtual bool RenderGUI(const vkfw_core::VKWindow* window);
 

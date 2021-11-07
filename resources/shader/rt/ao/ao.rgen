@@ -92,6 +92,10 @@ void main()
     float tmax = 10000.0;
     vec3 normal;
 
+    if (cam.cameraMovedThisFrame != 1) {
+        resultColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+    }
+
     bool hit = findNextNonSpecularHit(origin.xyz, direction.xyz, normal, tmax);
     if (!hit) {
         resultColor = vec4(normal, 1.0f);
@@ -126,7 +130,7 @@ void main()
                 resultColor += vec4(vec3(0), 1.0f);
             }
         }
-        resultColor /= resultColor.w;
+        resultColor;
     }
 
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), resultColor);

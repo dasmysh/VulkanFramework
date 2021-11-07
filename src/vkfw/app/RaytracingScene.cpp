@@ -228,8 +228,9 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
     {
-        auto& bbDesc = window->GetFramebuffers()[0].GetDescriptor().m_attachments[0].m_tex;
-        vkfw_core::gfx::TextureDescriptor storageTexDesc{bbDesc.m_bytesPP, bbDesc.m_format, bbDesc.m_samples};
+        // auto& bbDesc = window->GetFramebuffers()[0].GetDescriptor().m_attachments[0].m_tex;
+
+        vkfw_core::gfx::TextureDescriptor storageTexDesc{16, vk::Format::eR32G32B32A32Sfloat, vk::SampleCountFlagBits::e1};
         storageTexDesc.m_imageTiling = vk::ImageTiling::eOptimal;
         storageTexDesc.m_imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled;
         storageTexDesc.m_memoryProperties = vk::MemoryPropertyFlagBits::eDeviceLocal;
@@ -309,11 +310,14 @@ namespace vkfw_app::scene::rt {
         window->EndSwapchainRenderPass(cmdBufferIndex);
     }
 
-    void RaytracingScene::FrameMove(float, float, const vkfw_core::VKWindow* window)
+    void RaytracingScene::FrameMove(float, float, bool cameraChanged, const vkfw_core::VKWindow* window)
     {
         m_cameraProperties.viewInverse = glm::inverse(GetCamera()->GetViewMatrix());
         m_cameraProperties.projInverse = glm::inverse(GetCamera()->GetProjMatrix());
-        m_cameraProperties.frameId += 1;
+        if (window->GetCurrentlyRenderedImageIndex() == 0) {
+            m_cameraProperties.frameId += 1;
+            m_cameraProperties.cameraMovedThisFrame = cameraChanged ? 1 : 0;
+        }
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         m_cameraUBO.UpdateInstanceData(uboIndex, m_cameraProperties);

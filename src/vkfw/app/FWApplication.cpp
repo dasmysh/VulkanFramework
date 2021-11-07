@@ -55,11 +55,11 @@ namespace vkfw_app {
     {
         if (window != GetWindow(0)) return;
 
-        m_camera->UpdateCamera(elapsed, window);
+        bool cameraChanged = m_camera->UpdateCamera(elapsed, window);
 
         switch (m_scene_to_render) {
-        case 0: m_simple_scene.FrameMove(time, elapsed, window); break;
-        case 1: m_rt_scene.FrameMove(time, elapsed, window); break;
+        case 0: m_simple_scene.FrameMove(time, elapsed, cameraChanged, window); break;
+        case 1: m_rt_scene.FrameMove(time, elapsed, cameraChanged, window); break;
         default: break;
         }
     }

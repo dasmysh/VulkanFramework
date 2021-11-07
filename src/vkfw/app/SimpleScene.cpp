@@ -104,7 +104,7 @@ namespace vkfw_app::scene::simple {
         window->EndSwapchainRenderPass(cmdBufferIndex);
     }
 
-    void SimpleScene::FrameMove(float time, float, const vkfw_core::VKWindow* window)
+    void SimpleScene::FrameMove(float time, float, bool, const vkfw_core::VKWindow* window)
     {
         mesh_sample::CameraUniformBufferObject camera_ubo;
         mesh::WorldUniformBufferObject world_ubo;
