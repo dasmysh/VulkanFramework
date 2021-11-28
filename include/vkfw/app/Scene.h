@@ -42,6 +42,11 @@ namespace vkfw_app::scene {
         vkfw_core::gfx::UserControlledCamera* GetCamera() const { return m_camera; }
         std::size_t GetNumberOfFramebuffers() const { return m_num_framebuffers; }
 
+        // The queue indices for the current configuration.
+        constexpr static unsigned int GRAPHICS_QUEUE = 0;
+        constexpr static unsigned int TRANSFER_QUEUE = 0;
+
+
     private:
         /** The device to render the scene on. */
         vkfw_core::gfx::LogicalDevice* m_device;

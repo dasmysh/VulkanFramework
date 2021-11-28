@@ -12,5 +12,5 @@ layout(set = ConvergenceSet, binding = AccumulatedImage) uniform sampler2D accum
 void main()
 {
     vec4 accumulatedColor = texture(accumulatedImage, fragTexCoord);
-    outColor = vec4(accumulatedColor.rgb / accumulatedColor.a, 1.0f);
+    outColor = vec4(vec3(accumulatedColor.r / accumulatedColor.a), 1.0f);
 }

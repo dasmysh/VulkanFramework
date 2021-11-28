@@ -95,13 +95,13 @@ namespace vkfw_app::scene::rt {
 
         m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, m_cameraProperties);
 
-        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(1, 0)};
+        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(TRANSFER_QUEUE, 0)};
         m_memGroup.FinalizeDeviceGroup();
         m_memGroup.TransferData(transfer);
         transfer.FinishTransfer();
 
         {
-            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("RTSceneTransferCommandPool", 1);
+            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("RTSceneTransferCommandPool", TRANSFER_QUEUE);
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{m_transferCmdPool.GetHandle(), vk::CommandBufferLevel::ePrimary,
                                                              static_cast<std::uint32_t>(numUBOBuffers)};
             m_transferCommandBuffers =
@@ -137,11 +137,11 @@ namespace vkfw_app::scene::rt {
         {
             // This barrier is needed to get all images into the same layout they will be at the beginning of each command buffer submit.
             // if we would fill the command buffer each frame (and therefore create barriers containing the actual image layouts) this would not be neccessary.
-            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
+            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(GRAPHICS_QUEUE));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice()};
             m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eRayTracingShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
             barrier.Record(cmdBuffer);
-            auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {});
+            auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
             if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
                 spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");
@@ -228,17 +228,28 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window)
     {
-        // auto& bbDesc = window->GetFramebuffers()[0].GetDescriptor().m_attachments[0].m_tex;
-
         vkfw_core::gfx::TextureDescriptor storageTexDesc{16, vk::Format::eR32G32B32A32Sfloat, vk::SampleCountFlagBits::e1};
         storageTexDesc.m_imageTiling = vk::ImageTiling::eOptimal;
         storageTexDesc.m_imageUsage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled;
         storageTexDesc.m_memoryProperties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
         {
+            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferConvImageLayoutsInitialCommandBuffer", "TransferConvImageLayoutsInitial", GetDevice()->GetCommandPool(GRAPHICS_QUEUE));
+            vkfw_core::gfx::PipelineBarrier barrier{GetDevice()};
+
             for (std::size_t i = 0; i < window->GetFramebuffers().size(); ++i) {
                 auto& image = m_rayTracingConvergenceImages.emplace_back(GetDevice(), fmt::format("RTSceneConvergenceImage-{}", i), storageTexDesc, vk::ImageLayout::eUndefined);
                 image.InitializeImage(glm::u32vec4{screenSize, 1, 1}, 1);
+            }
+            for (auto& image : m_rayTracingConvergenceImages) {
+                image.AccessBarrier(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            }
+
+            barrier.Record(cmdBuffer);
+            auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
+            if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                throw std::runtime_error("Could not wait for fence while transitioning layout.");
             }
         }
     }
@@ -322,11 +333,12 @@ namespace vkfw_app::scene::rt {
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
         m_cameraUBO.UpdateInstanceData(uboIndex, m_cameraProperties);
 
-        const auto& transferQueue = GetDevice()->GetQueue(1, 0);
+        const auto& transferQueue = GetDevice()->GetQueue(TRANSFER_QUEUE, 0);
         {
             QUEUE_REGION(transferQueue, "FrameMove");
             std::array<vk::Semaphore, 1> transferSemaphore = {window->GetDataAvailableSemaphore().GetHandle()};
-            m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, {}, transferSemaphore);
+            std::array<vk::Semaphore, 1> signalSemaphore = {window->GetRenderingFinishedSemaphore().GetHandle()};
+            m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, signalSemaphore, transferSemaphore);
 
         }
     }
@@ -339,9 +351,13 @@ namespace vkfw_app::scene::rt {
         ImGui::SetNextWindowSize(ImVec2(220, 190), ImGuiCond_Always);
         if (ImGui::Begin("Scene Control")) {
             bool cosSample = m_cameraProperties.cosineSampled == 1;
-            ImGui::Checkbox("Samples Cosine Weigthed", &cosSample);
+            if (ImGui::Checkbox("Samples Cosine Weigthed", &cosSample)) {
+                // add camera changed here.
+            }
             m_cameraProperties.cosineSampled = cosSample ? 1 : 0;
-            ImGui::SliderFloat("Max. Range", &m_cameraProperties.maxRange, 0.1f, 10000.0f);
+            if (ImGui::SliderFloat("Max. Range", &m_cameraProperties.maxRange, 0.1f, 10000.0f)) {
+                // add camera changed here.
+            }
         }
         ImGui::End();
 

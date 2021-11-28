@@ -122,7 +122,7 @@ namespace vkfw_app::scene::simple {
                                        -0.2f * time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         m_mesh->UpdateWorldMatrices(uboIndex, m_meshWorldMatrix);
 
-        const auto& transferQueue = GetDevice()->GetQueue(1, 0);
+        const auto& transferQueue = GetDevice()->GetQueue(TRANSFER_QUEUE, 0);
         {
             QUEUE_REGION(transferQueue, "FrameMove");
             std::array<vk::Semaphore, 1> transferSemaphore = {window->GetDataAvailableSemaphore().GetHandle()};
@@ -135,7 +135,7 @@ namespace vkfw_app::scene::simple {
     void SimpleScene::InitializeScene()
     {
         // as long as the last transfer of texture layouts is done on this queue, we have to use the graphics queue here.
-        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(1, 0)};
+        vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(TRANSFER_QUEUE, 0)};
 
         auto numUBOBuffers = GetNumberOfFramebuffers();
 
@@ -144,6 +144,7 @@ namespace vkfw_app::scene::simple {
         initialWorldUBO.model =
             glm::rotate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         initialWorldUBO.normalMatrix = glm::mat4(glm::inverseTranspose(glm::mat3(initialWorldUBO.model)));
+        std::size_t staticBufferSize = vkfw_core::byteSizeOf(m_vertices) + vkfw_core::byteSizeOf(m_indices);
 
         std::vector<glm::vec3> planesPoints;
         for (const auto& v : m_vertices) planesPoints.push_back(v.inPosition);
@@ -201,7 +202,7 @@ namespace vkfw_app::scene::simple {
         m_vertexInputResources = vkfw_core::gfx::VertexInputResources{GetDevice(), 0, vertexBuffer, vkfw_core::gfx::BufferDescription{m_memGroup.GetBuffer(m_completeBufferIdx), vkfw_core::byteSizeOf(m_vertices)}, vk::IndexType::eUint32};
 
         {
-            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("SimpleSceneTransferCmdPool", 1);
+            m_transferCmdPool = GetDevice()->CreateCommandPoolForQueue("SimpleSceneTransferCmdPool", TRANSFER_QUEUE);
             vk::CommandBufferAllocateInfo cmdBufferallocInfo{m_transferCmdPool.GetHandle(), vk::CommandBufferLevel::ePrimary, static_cast<std::uint32_t>(numUBOBuffers)};
             m_transferCommandBuffers =
                 vkfw_core::gfx::CommandBuffer::Initialize(GetDevice(), "SimpleSceneTransferCommandBuffer", m_transferCmdPool.GetQueueFamily(), GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
@@ -218,13 +219,14 @@ namespace vkfw_app::scene::simple {
         }
 
         {
-            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(0));
+            auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(GRAPHICS_QUEUE));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice()};
             m_demoTexture->GetTexture().AccessBarrier(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
-            m_memGroup.GetBuffer(m_completeBufferIdx)->AccessBarrier(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, barrier);
+            m_memGroup.GetBuffer(m_completeBufferIdx)->AccessBarrierRange(false, 0, staticBufferSize, vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, barrier);
+            // m_memGroup.GetBuffer(m_completeBufferIdx)->AccessBarrier(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, barrier);
             m_mesh->CreateBufferUseBarriers(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eFragmentShader, barrier);
             barrier.Record(cmdBuffer);
-            auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(0, 0), cmdBuffer, {}, {});
+            auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
             if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
                 spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");

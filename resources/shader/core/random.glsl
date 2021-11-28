@@ -2,6 +2,9 @@
  * Implementation is taken from Ray Tracing Gems II
  */
 
+#ifndef SHADER_CORE_RANDOM
+#define SHADER_CORE_RANDOM
+
 uint jenkinsHash(uint x)
 {
     x += x << 10;
@@ -35,3 +38,5 @@ float rand(inout uint rngState)
 {
     return uintToFloat(xorshift(rngState));
 }
+
+#endif // SHADER_CORE_RANDOM
