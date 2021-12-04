@@ -323,29 +323,46 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::FrameMove(float, float, bool cameraChanged, const vkfw_core::VKWindow* window)
     {
+        static bool firstFrame = true;
         m_cameraProperties.viewInverse = glm::inverse(GetCamera()->GetViewMatrix());
         m_cameraProperties.projInverse = glm::inverse(GetCamera()->GetProjMatrix());
-        if (window->GetCurrentlyRenderedImageIndex() == 0) {
-            m_cameraProperties.frameId += 1;
-            m_cameraProperties.cameraMovedThisFrame = cameraChanged ? 1 : 0;
-        }
 
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
+
+        if (m_lastMoveFrame == uboIndex) {
+            m_lastMoveFrame = static_cast<std::size_t>(-1);
+            m_cameraProperties.cameraMovedThisFrame = 0;
+        }
+
+        if (window->GetCurrentlyRenderedImageIndex() == 0) { m_cameraProperties.frameId += 1; }
+
+        if (cameraChanged || m_guiChanged) {
+            m_cameraProperties.cameraMovedThisFrame = 1;
+            m_guiChanged = false;
+            m_lastMoveFrame = uboIndex;
+        }
+
         m_cameraUBO.UpdateInstanceData(uboIndex, m_cameraProperties);
 
         const auto& transferQueue = GetDevice()->GetQueue(TRANSFER_QUEUE, 0);
         {
             QUEUE_REGION(transferQueue, "FrameMove");
-            std::array<vk::Semaphore, 1> transferSemaphore = {window->GetDataAvailableSemaphore().GetHandle()};
-            std::array<vk::Semaphore, 1> signalSemaphore = {window->GetRenderingFinishedSemaphore().GetHandle()};
-            m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, signalSemaphore, transferSemaphore);
+            std::array<vk::SemaphoreSubmitInfoKHR, 1> signalSemaphore = {vk::SemaphoreSubmitInfoKHR{window->GetDataAvailableSemaphore().GetHandle(), 0, vk::PipelineStageFlagBits2KHR::eTopOfPipe}};
+            // dont wait on first frame
+            if (firstFrame) {
+                m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, std::span<vk::SemaphoreSubmitInfoKHR>{}, signalSemaphore);
+                firstFrame = false;
+            } else {
+                std::array<vk::SemaphoreSubmitInfoKHR, 1> waitSemaphore = {vk::SemaphoreSubmitInfoKHR{window->GetRenderingFinishedSemaphore().GetHandle(), 0, vk::PipelineStageFlagBits2KHR::eTransfer}};
+                m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, waitSemaphore, signalSemaphore);
+            }
 
         }
     }
 
     void RaytracingScene::RenderScene(const vkfw_core::VKWindow*) {}
 
-    bool RaytracingScene::RenderGUI(const vkfw_core::VKWindow*)
+    bool RaytracingScene::RenderGUI([[maybe_unused]] const vkfw_core::VKWindow* window)
     {
         ImGui::SetNextWindowPos(ImVec2(5, 100), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(220, 190), ImGuiCond_Always);
@@ -353,10 +370,12 @@ namespace vkfw_app::scene::rt {
             bool cosSample = m_cameraProperties.cosineSampled == 1;
             if (ImGui::Checkbox("Samples Cosine Weigthed", &cosSample)) {
                 // add camera changed here.
+                m_guiChanged = true;
             }
             m_cameraProperties.cosineSampled = cosSample ? 1 : 0;
             if (ImGui::SliderFloat("Max. Range", &m_cameraProperties.maxRange, 0.1f, 10000.0f)) {
                 // add camera changed here.
+                m_guiChanged = true;
             }
         }
         ImGui::End();

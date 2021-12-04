@@ -25,6 +25,7 @@ if (ENABLE_PCH)
   target_precompile_headers(vkfw_options INTERFACE <vector> <string> <map> <utility>)
 endif()
 
+set(CONAN_DISABLE_CHECK_COMPILER ON)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
 conan_basic_setup(TARGETS)
 

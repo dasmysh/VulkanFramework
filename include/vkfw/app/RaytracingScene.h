@@ -106,5 +106,7 @@ namespace vkfw_app::scene::rt {
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
 
         CameraPropertiesBuffer m_cameraProperties;
+        std::size_t m_lastMoveFrame = static_cast<std::size_t>(-1);
+        bool m_guiChanged = true;
     };
 }

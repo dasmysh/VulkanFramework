@@ -125,7 +125,7 @@ namespace vkfw_app::scene::simple {
         const auto& transferQueue = GetDevice()->GetQueue(TRANSFER_QUEUE, 0);
         {
             QUEUE_REGION(transferQueue, "FrameMove");
-            std::array<vk::Semaphore, 1> transferSemaphore = {window->GetDataAvailableSemaphore().GetHandle()};
+            std::array<vk::SemaphoreSubmitInfoKHR, 1> transferSemaphore = {vk::SemaphoreSubmitInfoKHR{window->GetDataAvailableSemaphore().GetHandle(), 0, vk::PipelineStageFlagBits2KHR::eTopOfPipe}};
             m_transferCommandBuffers[uboIndex].SubmitToQueue(transferQueue, {}, transferSemaphore);
         }
     }
