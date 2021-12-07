@@ -20,6 +20,8 @@
 // #include <gfx/VertexFormats.h>
 #include <glm/gtc/matrix_inverse.hpp>
 #include "imgui.h"
+#include "gfx/AOIntegrator.h"
+#include "gfx/PathIntegrator.h"
 
 #undef MemoryBarrier
 
@@ -37,7 +39,6 @@ namespace vkfw_app::scene::rt {
         , m_convergenceImageDescriptorSetLayout{"RTSceneConvergenceDescriptorSet"}
         , m_rtPipelineLayout{GetDevice()->GetHandle(), "RTScenePipelineLayout", vk::UniquePipelineLayout{}}
         , m_rtResourcesDescriptorSet{GetDevice(), "RTSceneResourcesDescriptorSet", vk::DescriptorSet{}}
-        , m_rtPipeline{GetDevice(), "RTScenePipeline", {}}
         , m_accumulatedResultSampler{GetDevice()->GetHandle(), "AccumulatedResultSampler", vk::UniqueSampler{}}
         , m_accumulatedResultImageDescriptorSetLayout{"AccumulatedResultDescriptorSet"}
         , m_compositingPipelineLayout{GetDevice()->GetHandle(), "RTCompositingPipelineLayout", vk::UniquePipelineLayout{}}
@@ -52,6 +53,8 @@ namespace vkfw_app::scene::rt {
         InitializeScene();
         InitializeDescriptorSets();
     }
+
+    RaytracingScene::~RaytracingScene() = default;
 
     void RaytracingScene::InitializeScene()
     {
@@ -214,14 +217,11 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window)
     {
-        if (m_rtPipeline) { return; }
         InitializeStorageImage(screenSize, window);
         FillDescriptorSets();
 
-        std::vector<std::shared_ptr<vkfw_core::gfx::Shader>> shaders{GetDevice()->GetShaderManager()->GetResource("shader/rt/ao/ao.rgen"), GetDevice()->GetShaderManager()->GetResource("shader/rt/ao/miss.rmiss"),
-                                                                     GetDevice()->GetShaderManager()->GetResource("shader/rt/ao/closesthit.rchit"), GetDevice()->GetShaderManager()->GetResource("shader/rt/skipAlpha.rahit")};
-        m_rtPipeline.ResetShaders(std::move(shaders));
-        m_rtPipeline.CreatePipeline(1, m_rtPipelineLayout);
+        m_integrators.clear();
+        m_integrators.emplace_back(std::make_unique<gfx::rt::AOIntegrator>(GetDevice(), m_rtPipelineLayout, m_cameraUBO, m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets));
 
         m_compositingFullscreenQuad.CreatePipeline(GetDevice(), screenSize, window->GetRenderPass(), 0, m_compositingPipelineLayout);
     }
@@ -305,14 +305,7 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window)
     {
-        auto& sbtDeviceAddressRegions = m_rtPipeline.GetSBTDeviceAddresses();
-
-        m_rtPipeline.BindPipeline(cmdBuffer);
-        m_rtResourcesDescriptorSet.Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_rtPipelineLayout, 0, static_cast<std::uint32_t>(cmdBufferIndex * m_cameraUBO.GetInstanceSize()));
-        m_convergenceImageDescriptorSets[cmdBufferIndex].Bind(cmdBuffer, vk::PipelineBindPoint::eRayTracingKHR, m_rtPipelineLayout, 1);
-
-        cmdBuffer.GetHandle().traceRaysKHR(sbtDeviceAddressRegions[0], sbtDeviceAddressRegions[1], sbtDeviceAddressRegions[2], sbtDeviceAddressRegions[3], m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().x,
-                                           m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().y, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize().z);
+        m_integrators[m_integrator]->TraceRays(cmdBuffer, cmdBufferIndex, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize());
 
         m_accumulatedResultImageDescriptorSets[cmdBufferIndex].BindBarrier(cmdBuffer);
         window->BeginSwapchainRenderPass(cmdBufferIndex, {}, {});
@@ -367,6 +360,10 @@ namespace vkfw_app::scene::rt {
         ImGui::SetNextWindowPos(ImVec2(5, 100), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(220, 190), ImGuiCond_Always);
         if (ImGui::Begin("Scene Control")) {
+            for (const auto& integrator : m_integrators) {
+                if (ImGui::RadioButton(integrator->GetName().data(), &m_integrator, 0)) { m_guiChanged = true; }
+            }
+
             bool cosSample = m_cameraProperties.cosineSampled == 1;
             if (ImGui::Checkbox("Samples Cosine Weigthed", &cosSample)) {
                 // add camera changed here.

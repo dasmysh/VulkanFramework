@@ -14,7 +14,6 @@
 #include <gfx/vk/rt/AccelerationStructureGeometry.h>
 #include <gfx/vk/pipeline/DescriptorSetLayout.h>
 #include <gfx/vk/wrappers/PipelineLayout.h>
-#include <gfx/vk/pipeline/RayTracingPipeline.h>
 #include <gfx/renderer/FullscreenQuad.h>
 #include "rt/rt_sample_host_interface.h"
 #include "rt/ao/ao_composite_shader_interface.h"
@@ -30,6 +29,10 @@ namespace vkfw_core::gfx {
     class SubMesh;
 }
 
+namespace vkfw_app::gfx::rt {
+    class RTIntegrator;
+}
+
 namespace vkfw_app::scene::rt {
 
     class RaytracingScene : public Scene
@@ -37,6 +40,7 @@ namespace vkfw_app::scene::rt {
     public:
         RaytracingScene(vkfw_core::gfx::LogicalDevice* t_device, vkfw_core::gfx::UserControlledCamera* t_camera,
                     std::size_t num_framebuffers);
+        ~RaytracingScene();
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
         void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
@@ -86,8 +90,8 @@ namespace vkfw_app::scene::rt {
         /** The descriptor set for the convergence image. */
         std::vector<vkfw_core::gfx::DescriptorSet> m_convergenceImageDescriptorSets;
 
-        /** The raytracing pipeline. */
-        vkfw_core::gfx::RayTracingPipeline m_rtPipeline;
+        std::vector<std::unique_ptr<gfx::rt::RTIntegrator>> m_integrators;
+        int m_integrator = 0;
 
         /** Holds the texture sampler for the accumulated result. */
         vkfw_core::gfx::Sampler m_accumulatedResultSampler;
