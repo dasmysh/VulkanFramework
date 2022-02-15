@@ -50,6 +50,7 @@ namespace vkfw_app::scene::rt {
 
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
         m_triangleMaterial.m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
+        // m_triangleMaterial. m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
         InitializeScene();
         InitializeDescriptorSets();
     }
@@ -65,7 +66,7 @@ namespace vkfw_app::scene::rt {
         m_cameraProperties.frameId = 0;
         m_cameraProperties.cosineSampled = 0;
         m_cameraProperties.cameraMovedThisFrame = 1;
-        m_cameraProperties.maxRange = 100.0f;
+        m_cameraProperties.maxRange = 10.0f;
         auto uboSize = m_cameraUBO.GetCompleteSize();
 
         // Setup vertices for a single triangle
@@ -124,7 +125,12 @@ namespace vkfw_app::scene::rt {
 
         m_asGeometry.AddMeshGeometry(*m_teapotMeshInfo.get(), worldMatrixTeapot);
         m_asGeometry.AddMeshGeometry(*m_sponzaMeshInfo.get(), worldMatrixSponza);
-        m_asGeometry.FinalizeGeometry<RayTracingVertex>();
+
+        vkfw_core::gfx::rt::AccelerationStructureGeometry::AccelerationStructureBufferInfo bufferInfo;
+        m_asGeometry.FinalizeGeometry<RayTracingVertex>(bufferInfo);
+        m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongMaterialInfo>(bufferInfo);
+        m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongBumpMaterialInfo>(bufferInfo);
+        m_asGeometry.FinalizeBuffer(bufferInfo);
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
@@ -162,7 +168,7 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.AddDescriptorLayoutBindingAS(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ResBindings::AccelerationStructure));
         m_asGeometry.AddDescriptorLayoutBindingBuffers(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR, static_cast<uint32_t>(ResBindings::Vertices),
                                                        static_cast<uint32_t>(ResBindings::Indices), static_cast<uint32_t>(ResBindings::InstanceInfos), static_cast<uint32_t>(ResBindings::MaterialInfos),
-                                                       static_cast<uint32_t>(ResBindings::DiffuseTextures), static_cast<uint32_t>(ResBindings::BumpTextures));
+                                                       static_cast<uint32_t>(ResBindings::Textures));
         UniformBufferObject::AddDescriptorLayoutBinding(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(ResBindings::CameraProperties));
 
         Texture::AddDescriptorLayoutBinding(m_convergenceImageDescriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ConvBindings::ResultImage));
@@ -264,9 +270,9 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::BufferRange> vboBufferRanges;
         std::vector<vkfw_core::gfx::BufferRange> iboBufferRanges;
         std::array<vkfw_core::gfx::BufferRange, 1> instanceBufferRange;
-        std::array<vkfw_core::gfx::BufferRange, 1> materialBufferRange;
-        std::vector<vkfw_core::gfx::Texture*> diffuseTextures;
-        std::vector<vkfw_core::gfx::Texture*> bumpMaps;
+        std::array<vkfw_core::gfx::BufferRange, 2> materialBufferRange;
+        std::vector<vkfw_core::gfx::Texture*> textures;
+        // std::vector<vkfw_core::gfx::Texture*> bumpMaps;
 
         m_rtResourcesDescriptorSet.InitializeWrites(GetDevice(), m_rtResourcesDescriptorSetLayout);
 
@@ -277,13 +283,15 @@ namespace vkfw_app::scene::rt {
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::CameraProperties), 0, cameraBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
 
         m_asGeometry.FillGeometryInfo(vboBufferRanges, iboBufferRanges, instanceBufferRange[0]);
-        m_asGeometry.FillMaterialInfo(materialBufferRange[0], diffuseTextures, bumpMaps);
+        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongMaterialInfo>(materialBufferRange[0]);
+        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongBumpMaterialInfo>(materialBufferRange[1]);
+        m_asGeometry.FillTextureInfo(textures);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Vertices), 0, vboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Indices), 0, iboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::InstanceInfos), 0, instanceBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::MaterialInfos), 0, materialBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
-        m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::DiffuseTextures), 0, diffuseTextures, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
-        m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::BumpTextures), 0, bumpMaps, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
+        m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::Textures), 0, textures, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
+        // m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::BumpTextures), 0, bumpMaps, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         m_rtResourcesDescriptorSet.FinalizeWrite(GetDevice());
 

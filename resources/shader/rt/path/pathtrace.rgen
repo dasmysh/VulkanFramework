@@ -7,7 +7,7 @@
 #include "../../core/sampling.glsl"
 #include "../rayTraversal.glsl"
 
-layout(binding = ResultImage, set = ConvergenceSet, rgba32f) uniform image2D image;
+layout(binding = ResultImage, set = ConvergenceSet, rgba8) uniform image2D image;
 
 const float aoRayCount = 16;
 
@@ -26,36 +26,36 @@ void compute_default_basis(const vec3 normal, out vec3 tangent, out vec3 binorma
   binormal = cross(normal, tangent);
 }
 
+
 void main()
 {
+    const bool cosSample = cam.cosineSampled == 1;
+    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, cam.frameId);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+
+    vec4 origin = cam.viewInverse * vec4(0,0,0,1);
+    vec4 target = cam.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = cam.viewInverse * vec4(normalize(target.xyz / target.w), 0);
     vec4 resultColor = vec4(0.0f);
+    float tmax = 10000.0;
+    vec3 normal;
+
     if (cam.cameraMovedThisFrame != 1) {
         resultColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
     }
 
-    float aoValue = resultColor.r;
-    float aoNormalize = resultColor.a;
-    float shaderRuns = resultColor.g + 1.0f;
-    float traceHits = resultColor.b;
-
-    resultColor = vec4(aoValue, shaderRuns, traceHits, aoNormalize);
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), resultColor);
-
-    const bool cosSample = cam.cosineSampled == 1;
-    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, cam.frameId);
-
-    vec3 origin, direction;
-    sampleCameraRay(origin, direction, cam, rngState);
-    float tmax = 10000.0;
-    vec3 normal;
-
-    bool hit = findNextNonSpecularHit(origin, direction, normal, tmax);
-    if (hit) {
-        traceHits += 1.0f;
-        vec3 n = face_forward(direction, normal);
+    bool hit = findNextNonSpecularHit(origin.xyz, direction.xyz, normal, tmax);
+    if (!hit) {
+        resultColor = vec4(normal, 1.0f);
+    }
+    else
+    {
+        vec3 n = face_forward(direction.xyz, normal);
         vec3 s, t;
         compute_default_basis(n, s, t);
-        vec3 p = origin;
+        vec3 p = origin.xyz;
 
         for (int i = 0; i < int(aoRayCount); ++i) {
             vec3 sample_direction;
@@ -73,18 +73,15 @@ void main()
 
             vec3 hitNormal, rayOrigin = p, rayDirection = sample_direction;
             if (!findNextNonSpecularHit(rayOrigin, rayDirection, hitNormal, cam.maxRange)) {
-                aoValue += dot(sample_direction, n) / (M_PI * pdf);
-                aoNormalize += 1.0f;
+                resultColor += vec4(vec3(dot(sample_direction, n) / (M_PI * pdf)), 1.0f);
             }
             else
             {
-                aoNormalize += 1.0f;
+                resultColor += vec4(vec3(0), 1.0f);
             }
         }
-    } else {
-        // resultColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        resultColor;
     }
 
-    resultColor = vec4(aoValue, shaderRuns, traceHits, aoNormalize);
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), resultColor);
 }

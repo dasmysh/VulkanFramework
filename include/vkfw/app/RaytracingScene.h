@@ -104,12 +104,12 @@ namespace vkfw_app::scene::rt {
         /** The fullscreen quad for compositing. */
         vkfw_core::gfx::FullscreenQuad m_compositingFullscreenQuad;
 
-        vkfw_core::gfx::MaterialInfo m_triangleMaterial;
+        vkfw_core::gfx::PhongMaterialInfo m_triangleMaterial;
         /** Holds the AssImp demo models. */
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
 
-        CameraPropertiesBuffer m_cameraProperties;
+        CameraParameters m_cameraProperties;
         std::size_t m_lastMoveFrame = static_cast<std::size_t>(-1);
         bool m_guiChanged = true;
     };

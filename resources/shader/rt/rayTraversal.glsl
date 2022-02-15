@@ -14,12 +14,12 @@ bool findNextNonSpecularHit(inout vec3 origin, inout vec3 direction, out vec3 no
     hitValue.rayOrigin = origin.xyz;
     hitValue.done = 0;
 
-    // uint specularDepth = 0;
-    // while (hitValue.done == 0 && specularDepth < maxSpecularDepth)
-    // {
+    uint specularDepth = 0;
+    while (hitValue.done == 0 && specularDepth < maxSpecularDepth)
+    {
         traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, hitValue.rayOrigin, tmin, hitValue.rayDirection, tmax, 0);
-    //     specularDepth += 1;
-    // }
+        specularDepth += 1;
+    }
     if (hitValue.done == -1)
     {
         normal = vec3(0.0f, 1.0f, 0.0f);

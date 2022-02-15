@@ -3,10 +3,10 @@
 
 #define RAYGEN
 
+#include "rt_sample_host_interface.h"
 #include "ray.glsl"
 #include "../core/random.glsl"
 #include "../core/sampling.glsl"
-#include "rt_sample_host_interface.h"
 
 layout(binding = AccelerationStructure, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = ResultImage, set = 0, rgba8) uniform image2D image;

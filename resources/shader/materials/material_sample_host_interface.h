@@ -1,0 +1,10 @@
+#ifndef MATERIAL_SAMPLE_HOST_INTERFACE
+#define MATERIAL_SAMPLE_HOST_INTERFACE
+
+#include "materials/material_host_interface.h"
+
+BEGIN_INTERFACE(materials)
+
+END_INTERFACE()
+
+#endif // MATERIAL_SAMPLE_HOST_INTERFACE

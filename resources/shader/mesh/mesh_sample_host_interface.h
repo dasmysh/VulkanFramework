@@ -32,7 +32,7 @@ END_INPUT_BLOCK()
 BEGIN_UNIFORM_BLOCK(set = 2, binding = CameraProperties, CameraUniformBufferObject)
 mat4 view;
 mat4 proj;
-END_UNIFORM_BLOCK(camera_ubo)
+END_UNIFORM_NAMED_BLOCK(camera_ubo)
 
 END_INTERFACE()
 

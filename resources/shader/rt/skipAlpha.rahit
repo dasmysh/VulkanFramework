@@ -11,9 +11,8 @@ hitAttributeEXT vec2 attribs;
 layout(scalar, binding = Vertices, set = RTResourcesSet) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
 layout(binding = Indices, set = RTResourcesSet) buffer IndicesBuffer { uint i[]; } indices[];
 layout(scalar, binding = InstanceInfos, set = RTResourcesSet) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = MaterialInfos, set = RTResourcesSet) buffer MaterialInfosBuffer { MaterialDesc m[]; } materials;
-layout(binding = DiffuseTextures, set = RTResourcesSet) uniform sampler2D diffuseTextures[];
-layout(binding = BumpTextures, set = RTResourcesSet) uniform sampler2D bumpTextures[];
+layout(scalar, binding = MaterialInfos, set = RTResourcesSet) buffer MaterialInfosBuffer { PhongBumpMaterial m[]; } materials;
+layout(binding = Textures, set = RTResourcesSet) uniform sampler2D textures[];
 
 void main()
 {
@@ -21,8 +20,6 @@ void main()
 
     uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;
     uint indexOffset = instances.i[gl_InstanceID].indexOffset;
-    uint materialIndex = instances.i[gl_InstanceID].materialIndex;
-    uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
 
     ivec3 ind = ivec3(indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 0],
                       indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 1],
@@ -33,7 +30,14 @@ void main()
     RayTracingVertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
 
     vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
-    float alpha = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).a;
+
+    uint materialIndex = instances.i[gl_InstanceID].materialIndexx;
+    uint materialType = instances.i[gl_InstanceID].materialType;
+    float alpha = 1.0f;
+    if (materialType == PhongBumpMaterialType) {
+        uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
+        alpha = texture(textures[nonuniformEXT(diffuseTextureIndex)], texCoords).a;
+    }
 
     if (alpha == 0.0f)
     {

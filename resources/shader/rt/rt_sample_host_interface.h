@@ -2,6 +2,7 @@
 #define RT_SAMPLE_HOST_INTERFACE
 
 #include "rt/ray_tracing_host_interface.h"
+#include "materials/material_sample_host_interface.h"
 
 BEGIN_INTERFACE(vkfw_app::scene::rt)
 
@@ -17,9 +18,8 @@ BEGIN_CONSTANTS(ResSetBindings)
     Indices = 3,
     InstanceInfos = 4,
     MaterialInfos = 5,
-    DiffuseTextures = 6,
-    BumpTextures = 7,
-    ResSetBindingsSize = 8
+    Textures = 6,
+    ResSetBindingsSize = 7
 END_CONSTANTS()
 
 BEGIN_CONSTANTS(ConvSetBindings)
@@ -42,14 +42,19 @@ struct RayTracingVertex
 #endif
 };
 
+struct CameraParameters
+{
+    mat4 viewInverse;
+    mat4 projInverse;
+    uint frameId;
+    uint cameraMovedThisFrame;
+    uint cosineSampled;
+    float maxRange;
+};
+
 BEGIN_UNIFORM_BLOCK(set = RTResourcesSet, binding = CameraProperties, CameraPropertiesBuffer)
-mat4 viewInverse;
-mat4 projInverse;
-uint frameId;
-uint cameraMovedThisFrame;
-uint cosineSampled;
-float maxRange;
-END_UNIFORM_BLOCK(cam)
+    CameraParameters cam;
+END_UNIFORM_BLOCK()
 
 END_INTERFACE()
 

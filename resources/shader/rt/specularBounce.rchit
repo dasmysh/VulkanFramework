@@ -11,9 +11,8 @@ hitAttributeEXT vec2 attribs;
 layout(scalar, binding = Vertices, set = 0) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
 layout(binding = Indices, set = 0) buffer IndicesBuffer { uint i[]; } indices[];
 layout(scalar, binding = InstanceInfos, set = 0) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = MaterialInfos, set = 0) buffer MaterialInfosBuffer { MaterialDesc m[]; } materials;
-layout(binding = DiffuseTextures, set = 0) uniform sampler2D diffuseTextures[];
-layout(binding = BumpTextures, set = 0) uniform sampler2D bumpTextures[];
+layout(scalar, binding = MaterialInfos, set = 0) buffer MaterialInfosBuffer { PhongBumpMaterial m[]; } materials;
+layout(binding = Textures, set = 0) uniform sampler2D textures[];
 
 void main()
 {
@@ -32,8 +31,6 @@ void main()
 
     uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;
     uint indexOffset = instances.i[gl_InstanceID].indexOffset;
-    uint materialIndex = instances.i[gl_InstanceID].materialIndex;
-    uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
     mat4 transform = instances.i[gl_InstanceID].transform;
     mat4 transformInverseTranspose = instances.i[gl_InstanceID].transformInverseTranspose;
     // uint objId = scnDesc.i[gl_InstanceID].objId;
@@ -55,8 +52,16 @@ void main()
 
     vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
 
+    uint materialIndex = instances.i[gl_InstanceID].materialIndexx;
+    uint materialType = instances.i[gl_InstanceID].materialType;
+    vec3 attenuation = vec3(1.0f);
+    if (materialType == PhongBumpMaterialType) {
+        uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
+        attenuation = texture(textures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
+    }
+
     hitValue.rayOrigin = worldPos;
     hitValue.rayDirection = normal;
-    hitValue.attenuation = texture(diffuseTextures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
+    hitValue.attenuation = attenuation;
     hitValue.done = 1;
 }
