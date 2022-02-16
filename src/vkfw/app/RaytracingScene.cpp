@@ -270,7 +270,7 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::BufferRange> vboBufferRanges;
         std::vector<vkfw_core::gfx::BufferRange> iboBufferRanges;
         std::array<vkfw_core::gfx::BufferRange, 1> instanceBufferRange;
-        std::array<vkfw_core::gfx::BufferRange, 2> materialBufferRange;
+        std::array<vkfw_core::gfx::BufferRange, 1> materialBufferRange;
         std::vector<vkfw_core::gfx::Texture*> textures;
         // std::vector<vkfw_core::gfx::Texture*> bumpMaps;
 
@@ -283,8 +283,8 @@ namespace vkfw_app::scene::rt {
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::CameraProperties), 0, cameraBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
 
         m_asGeometry.FillGeometryInfo(vboBufferRanges, iboBufferRanges, instanceBufferRange[0]);
-        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongMaterialInfo>(materialBufferRange[0]);
-        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongBumpMaterialInfo>(materialBufferRange[1]);
+        // m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongMaterialInfo>(materialBufferRange[0]);
+        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongBumpMaterialInfo>(materialBufferRange[0]);
         m_asGeometry.FillTextureInfo(textures);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Vertices), 0, vboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Indices), 0, iboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);

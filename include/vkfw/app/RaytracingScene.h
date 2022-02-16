@@ -104,7 +104,7 @@ namespace vkfw_app::scene::rt {
         /** The fullscreen quad for compositing. */
         vkfw_core::gfx::FullscreenQuad m_compositingFullscreenQuad;
 
-        vkfw_core::gfx::PhongMaterialInfo m_triangleMaterial;
+        vkfw_core::gfx::PhongBumpMaterialInfo m_triangleMaterial;
         /** Holds the AssImp demo models. */
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
