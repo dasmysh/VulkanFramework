@@ -17,6 +17,7 @@
 #include <gfx/renderer/FullscreenQuad.h>
 #include "rt/rt_sample_host_interface.h"
 #include "rt/ao/ao_composite_shader_interface.h"
+#include "gfx/Materials.h"
 
 #include <glm/mat4x4.hpp>
 
@@ -104,7 +105,7 @@ namespace vkfw_app::scene::rt {
         /** The fullscreen quad for compositing. */
         vkfw_core::gfx::FullscreenQuad m_compositingFullscreenQuad;
 
-        vkfw_core::gfx::PhongBumpMaterialInfo m_triangleMaterial;
+        vkfw_app::gfx::MirrorMaterialInfo m_triangleMaterial;
         /** Holds the AssImp demo models. */
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;

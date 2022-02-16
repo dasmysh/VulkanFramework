@@ -11,9 +11,9 @@ hitAttributeEXT vec2 attribs;
 layout(scalar, binding = Vertices, set = RTResourcesSet) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
 layout(binding = Indices, set = RTResourcesSet) buffer IndicesBuffer { uint i[]; } indices[];
 layout(scalar, binding = InstanceInfos, set = RTResourcesSet) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = MaterialInfos, set = RTResourcesSet) buffer MaterialInfosBuffer { PhongBumpMaterial m[]; } materials;
+layout(scalar, binding = PhongBumpMaterialInfos, set = RTResourcesSet) buffer PhongMaterialInfosBuffer { PhongBumpMaterial m[]; } phongMaterials;
+layout(scalar, binding = MirrorMaterialInfos, set = RTResourcesSet) buffer MirrorMaterialInfosBuffer { MirrorMaterial m[]; } mirrorMaterials;
 layout(binding = Textures, set = RTResourcesSet) uniform sampler2D textures[];
-// layout(binding = BumpTextures, set = RTResourcesSet) uniform sampler2D bumpTextures[];
 
 void main()
 {

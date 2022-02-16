@@ -49,8 +49,7 @@ namespace vkfw_app::scene::rt {
         m_sampler.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createSamplerUnique(samplerCreateInfo));
 
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
-        m_triangleMaterial.m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
-        // m_triangleMaterial. m_diffuse = glm::vec3{0.988f, 0.059f, 0.753};
+        m_triangleMaterial.m_Kr = glm::vec3{0.988f, 0.059f, 0.753};
         InitializeScene();
         InitializeDescriptorSets();
     }
@@ -70,9 +69,9 @@ namespace vkfw_app::scene::rt {
         auto uboSize = m_cameraUBO.GetCompleteSize();
 
         // Setup vertices for a single triangle
-        std::vector<RayTracingVertex> vertices = {{glm::vec3{1.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}, glm::vec2{0.0f}},
-                                                  {glm::vec3{-1.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -1.0f}, glm::vec4{0.0f, 1.0f, 0.0f, 1.0f}, glm::vec2{0.0f}},
-                                                  {glm::vec3{0.0f, -1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -1.0f}, glm::vec4{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.0f}}};
+        std::vector<RayTracingVertex> vertices = {{glm::vec3{1.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}, glm::vec2{0.0f}},
+                                                  {glm::vec3{-1.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, glm::vec4{0.0f, 1.0f, 0.0f, 1.0f}, glm::vec2{0.0f}},
+                                                  {glm::vec3{0.0f, -1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, glm::vec4{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.0f}}};
         // Setup indices
         std::vector<uint32_t> indicesRT = {0, 1, 2};
 
@@ -128,7 +127,7 @@ namespace vkfw_app::scene::rt {
 
         vkfw_core::gfx::rt::AccelerationStructureGeometry::AccelerationStructureBufferInfo bufferInfo;
         m_asGeometry.FinalizeGeometry<RayTracingVertex>(bufferInfo);
-        m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongMaterialInfo>(bufferInfo);
+        m_asGeometry.FinalizeMaterial<vkfw_app::gfx::MirrorMaterialInfo>(bufferInfo);
         m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongBumpMaterialInfo>(bufferInfo);
         m_asGeometry.FinalizeBuffer(bufferInfo);
 
@@ -167,8 +166,11 @@ namespace vkfw_app::scene::rt {
 
         m_asGeometry.AddDescriptorLayoutBindingAS(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ResBindings::AccelerationStructure));
         m_asGeometry.AddDescriptorLayoutBindingBuffers(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR, static_cast<uint32_t>(ResBindings::Vertices),
-                                                       static_cast<uint32_t>(ResBindings::Indices), static_cast<uint32_t>(ResBindings::InstanceInfos), static_cast<uint32_t>(ResBindings::MaterialInfos),
+                                                       static_cast<uint32_t>(ResBindings::Indices), static_cast<uint32_t>(ResBindings::InstanceInfos),
                                                        static_cast<uint32_t>(ResBindings::Textures));
+
+        m_rtResourcesDescriptorSetLayout.AddBinding(static_cast<uint32_t>(ResBindings::PhongBumpMaterialInfos), vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR);
+        m_rtResourcesDescriptorSetLayout.AddBinding(static_cast<uint32_t>(ResBindings::MirrorMaterialInfos), vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR);
         UniformBufferObject::AddDescriptorLayoutBinding(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(ResBindings::CameraProperties));
 
         Texture::AddDescriptorLayoutBinding(m_convergenceImageDescriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ConvBindings::ResultImage));
@@ -270,9 +272,9 @@ namespace vkfw_app::scene::rt {
         std::vector<vkfw_core::gfx::BufferRange> vboBufferRanges;
         std::vector<vkfw_core::gfx::BufferRange> iboBufferRanges;
         std::array<vkfw_core::gfx::BufferRange, 1> instanceBufferRange;
-        std::array<vkfw_core::gfx::BufferRange, 1> materialBufferRange;
+        std::array<vkfw_core::gfx::BufferRange, 1> phongBumpMaterialBufferRange;
+        std::array<vkfw_core::gfx::BufferRange, 1> mirrorMaterialBufferRange;
         std::vector<vkfw_core::gfx::Texture*> textures;
-        // std::vector<vkfw_core::gfx::Texture*> bumpMaps;
 
         m_rtResourcesDescriptorSet.InitializeWrites(GetDevice(), m_rtResourcesDescriptorSetLayout);
 
@@ -283,15 +285,15 @@ namespace vkfw_app::scene::rt {
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::CameraProperties), 0, cameraBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
 
         m_asGeometry.FillGeometryInfo(vboBufferRanges, iboBufferRanges, instanceBufferRange[0]);
-        // m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongMaterialInfo>(materialBufferRange[0]);
-        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongBumpMaterialInfo>(materialBufferRange[0]);
+        m_asGeometry.FillMaterialInfo<vkfw_app::gfx::MirrorMaterialInfo>(mirrorMaterialBufferRange[0]);
+        m_asGeometry.FillMaterialInfo<vkfw_core::gfx::PhongBumpMaterialInfo>(phongBumpMaterialBufferRange[0]);
         m_asGeometry.FillTextureInfo(textures);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Vertices), 0, vboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::Indices), 0, iboBufferRanges, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::InstanceInfos), 0, instanceBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
-        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::MaterialInfos), 0, materialBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::PhongBumpMaterialInfos), 0, phongBumpMaterialBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
+        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::MirrorMaterialInfos), 0, mirrorMaterialBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
         m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::Textures), 0, textures, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
-        // m_rtResourcesDescriptorSet.WriteImageDescriptor(static_cast<uint32_t>(ResBindings::BumpTextures), 0, bumpMaps, m_sampler, vk::AccessFlagBits2KHR::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         m_rtResourcesDescriptorSet.FinalizeWrite(GetDevice());
 

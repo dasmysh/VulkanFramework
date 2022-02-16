@@ -17,9 +17,10 @@ BEGIN_CONSTANTS(ResSetBindings)
     Vertices = 2,
     Indices = 3,
     InstanceInfos = 4,
-    MaterialInfos = 5,
-    Textures = 6,
-    ResSetBindingsSize = 7
+    PhongBumpMaterialInfos = 5,
+    MirrorMaterialInfos = 6,
+    Textures = 7,
+    ResSetBindingsSize = 8
 END_CONSTANTS()
 
 BEGIN_CONSTANTS(ConvSetBindings)

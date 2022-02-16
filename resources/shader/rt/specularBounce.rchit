@@ -11,7 +11,8 @@ hitAttributeEXT vec2 attribs;
 layout(scalar, binding = Vertices, set = 0) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
 layout(binding = Indices, set = 0) buffer IndicesBuffer { uint i[]; } indices[];
 layout(scalar, binding = InstanceInfos, set = 0) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = MaterialInfos, set = 0) buffer MaterialInfosBuffer { PhongBumpMaterial m[]; } materials;
+layout(scalar, binding = PhongBumpMaterialInfos, set = RTResourcesSet) buffer PhongMaterialInfosBuffer { PhongBumpMaterial m[]; } phongMaterials;
+layout(scalar, binding = MirrorMaterialInfos, set = RTResourcesSet) buffer MirrorMaterialInfosBuffer { MirrorMaterial m[]; } mirrorMaterials;
 layout(binding = Textures, set = 0) uniform sampler2D textures[];
 
 void main()
@@ -52,11 +53,11 @@ void main()
 
     vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
 
-    uint materialIndex = instances.i[gl_InstanceID].materialIndexx;
+    uint materialIndex = instances.i[gl_InstanceID].materialIndex;
     uint materialType = instances.i[gl_InstanceID].materialType;
     vec3 attenuation = vec3(1.0f);
     if (materialType == PhongBumpMaterialType) {
-        uint diffuseTextureIndex = materials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
+        uint diffuseTextureIndex = phongMaterials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
         attenuation = texture(textures[nonuniformEXT(diffuseTextureIndex)], texCoords).rgb;
     }
 
