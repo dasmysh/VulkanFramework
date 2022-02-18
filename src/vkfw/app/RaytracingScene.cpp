@@ -119,7 +119,7 @@ namespace vkfw_app::scene::rt {
             }
         }
 
-        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, m_triangleMaterial, 1, vertices.size(), sizeof(RayTracingVertex),
+        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, m_triangleMaterial, m_integrators[m_integrator]->GetMaterialSBTMapping(), 1, vertices.size(), sizeof(RayTracingVertex),
                                          m_memGroup.GetBuffer(completeBufferIdx));
 
         m_asGeometry.AddMeshGeometry(*m_teapotMeshInfo.get(), worldMatrixTeapot);
@@ -129,7 +129,7 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.FinalizeGeometry<RayTracingVertex>(bufferInfo);
         m_asGeometry.FinalizeMaterial<vkfw_app::gfx::MirrorMaterialInfo>(bufferInfo);
         m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongBumpMaterialInfo>(bufferInfo);
-        m_asGeometry.FinalizeBuffer(bufferInfo);
+        m_asGeometry.FinalizeBuffer(bufferInfo, m_integrators[m_integrator]->GetMaterialSBTMapping());
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
@@ -229,6 +229,9 @@ namespace vkfw_app::scene::rt {
         FillDescriptorSets();
 
         m_integrators.clear();
+        dsd
+        // TODO: integrators need to be constructed before scene init
+        // Scene also needs to be (partially re-inited after integrator switch.
         m_integrators.emplace_back(std::make_unique<gfx::rt::AOIntegrator>(GetDevice(), m_rtPipelineLayout, m_cameraUBO, m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets));
 
         m_compositingFullscreenQuad.CreatePipeline(GetDevice(), screenSize, window->GetRenderPass(), 0, m_compositingPipelineLayout);

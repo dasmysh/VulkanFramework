@@ -13,6 +13,7 @@
 #include <gfx/vk/wrappers/CommandBuffer.h>
 #include <gfx/vk/wrappers/DescriptorSet.h>
 #include <gfx/vk/UniformBufferObject.h>
+#include "materials/material_sample_host_interface.h"
 
 namespace vkfw_app::gfx::rt {
 
@@ -20,8 +21,17 @@ namespace vkfw_app::gfx::rt {
                                vkfw_core::gfx::DescriptorSet& rtResourcesDescriptorSet, std::vector<vkfw_core::gfx::DescriptorSet>& convergenceImageDescriptorSets)
         : RTIntegrator{"Ambient Occlusion Integrator", "AOPipeline", device, rtPipelineLayout, cameraUBO, rtResourcesDescriptorSet, convergenceImageDescriptorSets}
     {
-        std::vector<std::shared_ptr<vkfw_core::gfx::Shader>> shaders{device->GetShaderManager()->GetResource("shader/rt/ao/ao.rgen"), device->GetShaderManager()->GetResource("shader/rt/ao/miss.rmiss"),
-                                                                     device->GetShaderManager()->GetResource("shader/rt/ao/closesthit.rchit"), device->GetShaderManager()->GetResource("shader/rt/skipAlpha.rahit")};
+        std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> shaders;
+        shaders.emplace_back(device->GetShaderManager()->GetResource("shader/rt/ao/ao.rgen"), 0);
+        shaders.emplace_back(device->GetShaderManager()->GetResource("shader/rt/ao/miss.miss"), 0);
+        // TODO: use other shaders based on material.
+        shaders.emplace_back(device->GetShaderManager()->GetResource("shader/rt/ao/closesthit.rchit"), 0);
+        shaders.emplace_back(device->GetShaderManager()->GetResource("shader/rt/skipAlpha.rahit"), 0);
+        shaders.emplace_back(device->GetShaderManager()->GetResource("shader/rt/ao/closesthit_mirror.rchit"), 1);
+
+        materialSBTMapping().resize(static_cast<std::size_t>(materials::MaterialIdentifierApp::TotalMaterialCount), 0);
+        materialSBTMapping()[static_cast<std::size_t>(materials::MaterialIdentifierApp::MirrorMaterialType)] = 1;
+
         GetPipeline().ResetShaders(std::move(shaders));
         GetPipeline().CreatePipeline(1, GetPipelineLayout());
     }

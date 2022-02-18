@@ -29,6 +29,7 @@ namespace vkfw_app::gfx::rt {
         virtual ~RTIntegrator();
 
         std::string_view GetName() const { return m_integratorName; }
+        const std::vector<std::uint32_t>& GetMaterialSBTMapping() const { return m_materialSBTMapping; }
         virtual void TraceRays(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, const glm::u32vec4& rtGroups) = 0;
 
     protected:
@@ -37,6 +38,7 @@ namespace vkfw_app::gfx::rt {
         vkfw_core::gfx::DescriptorSet& GetResourcesDescriptorSet() { return m_rtResourcesDescriptorSet; }
         vkfw_core::gfx::DescriptorSet& GetImageDescriptorSet(std::size_t imageIndex) { return m_convergenceImageDescriptorSets[imageIndex]; }
         const vkfw_core::gfx::UniformBufferObject& GetCameraUBO() const { return m_cameraUBO; }
+        std::vector<std::uint32_t>& materialSBTMapping() { return m_materialSBTMapping; }
 
     private:
         std::string_view m_integratorName;
@@ -50,5 +52,7 @@ namespace vkfw_app::gfx::rt {
         const vkfw_core::gfx::PipelineLayout& m_rtPipelineLayout;
         /** The raytracing pipeline. */
         vkfw_core::gfx::RayTracingPipeline m_rtPipeline;
+        /** The mapping between materials and shader binding table entries. */
+        std::vector<std::uint32_t> m_materialSBTMapping;
     };
 }

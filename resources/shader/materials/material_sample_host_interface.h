@@ -13,7 +13,8 @@ BEGIN_INTERFACE(materials)
 
 BEGIN_CONSTANTS(MaterialIdentifierApp)
     MirrorMaterialType = CALC_MATERIAL_ENUM(0),
-    GlassMaterialType = CALC_MATERIAL_ENUM(1)
+    GlassMaterialType = CALC_MATERIAL_ENUM(1),
+    TotalMaterialCount = CALC_MATERIAL_ENUM(2)
 END_CONSTANTS()
 
 struct MirrorMaterial

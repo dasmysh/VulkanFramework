@@ -11,8 +11,7 @@ hitAttributeEXT vec2 attribs;
 layout(scalar, binding = Vertices, set = RTResourcesSet) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
 layout(binding = Indices, set = RTResourcesSet) buffer IndicesBuffer { uint i[]; } indices[];
 layout(scalar, binding = InstanceInfos, set = RTResourcesSet) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
-layout(scalar, binding = PhongBumpMaterialInfos, set = RTResourcesSet) buffer PhongMaterialInfosBuffer { PhongBumpMaterial m[]; } phongMaterials;
-layout(binding = Textures, set = RTResourcesSet) uniform sampler2D textures[];
+layout(scalar, binding = MirrorMaterialInfos, set = RTResourcesSet) buffer MirrorMaterialInfosBuffer { MirrorMaterial m[]; } mirrorMaterials;
 
 void main()
 {
@@ -37,9 +36,7 @@ void main()
     vec3 worldPos = v0.position * barycentricCoords.x + v1.position * barycentricCoords.y + v2.position * barycentricCoords.z;
     worldPos = vec3(transform * vec4(worldPos, 1.0));
 
-    vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
-
     hitValue.rayOrigin = worldPos;
     hitValue.attenuation = normal;
-    hitValue.done += 1;
+    hitValue.rayDirection = reflect(hitValue.rayDirection, normal);
 }
