@@ -48,6 +48,8 @@ namespace vkfw_app::scene::rt {
                                                 vk::SamplerAddressMode::eRepeat};
         m_sampler.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createSamplerUnique(samplerCreateInfo));
 
+        m_integrator = std::make_unique<gfx::rt::AOIntegrator>(GetDevice());
+
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
         m_triangleMaterial.m_Kr = glm::vec3{0.988f, 0.059f, 0.753};
         InitializeScene();
@@ -119,7 +121,7 @@ namespace vkfw_app::scene::rt {
             }
         }
 
-        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, m_triangleMaterial, m_integrators[m_integrator]->GetMaterialSBTMapping(), 1, vertices.size(), sizeof(RayTracingVertex),
+        m_asGeometry.AddTriangleGeometry(glm::mat3x4{1.0f}, m_triangleMaterial, m_integrator->GetMaterialSBTMapping(), 1, vertices.size(), sizeof(RayTracingVertex),
                                          m_memGroup.GetBuffer(completeBufferIdx));
 
         m_asGeometry.AddMeshGeometry(*m_teapotMeshInfo.get(), worldMatrixTeapot);
@@ -129,7 +131,7 @@ namespace vkfw_app::scene::rt {
         m_asGeometry.FinalizeGeometry<RayTracingVertex>(bufferInfo);
         m_asGeometry.FinalizeMaterial<vkfw_app::gfx::MirrorMaterialInfo>(bufferInfo);
         m_asGeometry.FinalizeMaterial<vkfw_core::gfx::PhongBumpMaterialInfo>(bufferInfo);
-        m_asGeometry.FinalizeBuffer(bufferInfo, m_integrators[m_integrator]->GetMaterialSBTMapping());
+        m_asGeometry.FinalizeBuffer(bufferInfo, m_integrator->GetMaterialSBTMapping());
 
         // m_asGeometry.AddMeshGeometry(*m_meshInfo.get(), worldMatrixMesh);
         // m_asGeometry.FinalizeMeshGeometry<RayTracingVertex>();
@@ -228,11 +230,8 @@ namespace vkfw_app::scene::rt {
         InitializeStorageImage(screenSize, window);
         FillDescriptorSets();
 
-        m_integrators.clear();
-        dsd
-        // TODO: integrators need to be constructed before scene init
-        // Scene also needs to be (partially re-inited after integrator switch.
-        m_integrators.emplace_back(std::make_unique<gfx::rt::AOIntegrator>(GetDevice(), m_rtPipelineLayout, m_cameraUBO, m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets));
+        m_integrator->InitializePipeline(m_rtPipelineLayout);
+        m_integrator->InitializeMisc(m_cameraUBO, m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets);
 
         m_compositingFullscreenQuad.CreatePipeline(GetDevice(), screenSize, window->GetRenderPass(), 0, m_compositingPipelineLayout);
     }
@@ -318,7 +317,7 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window)
     {
-        m_integrators[m_integrator]->TraceRays(cmdBuffer, cmdBufferIndex, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize());
+        m_integrator->TraceRays(cmdBuffer, cmdBufferIndex, m_rayTracingConvergenceImages[cmdBufferIndex].GetPixelSize());
 
         m_accumulatedResultImageDescriptorSets[cmdBufferIndex].BindBarrier(cmdBuffer);
         window->BeginSwapchainRenderPass(cmdBufferIndex, {}, {});
@@ -373,9 +372,6 @@ namespace vkfw_app::scene::rt {
         ImGui::SetNextWindowPos(ImVec2(5, 100), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(220, 190), ImGuiCond_Always);
         if (ImGui::Begin("Scene Control")) {
-            for (const auto& integrator : m_integrators) {
-                if (ImGui::RadioButton(integrator->GetName().data(), &m_integrator, 0)) { m_guiChanged = true; }
-            }
 
             bool cosSample = m_cameraProperties.cosineSampled == 1;
             if (ImGui::Checkbox("Samples Cosine Weigthed", &cosSample)) {

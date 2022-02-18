@@ -81,8 +81,6 @@ void main()
                 aoNormalize += 1.0f;
             }
         }
-    } else {
-        // resultColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     resultColor = vec4(aoValue, shaderRuns, traceHits, aoNormalize);

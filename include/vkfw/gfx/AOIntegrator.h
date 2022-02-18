@@ -15,10 +15,12 @@ namespace vkfw_app::gfx::rt {
     class AOIntegrator : public RTIntegrator
     {
     public:
-        AOIntegrator(vkfw_core::gfx::LogicalDevice* device, const vkfw_core::gfx::PipelineLayout& rtPipelineLayout, const vkfw_core::gfx::UniformBufferObject& cameraUBO,
-                     vkfw_core::gfx::DescriptorSet& rtResourcesDescriptorSet, std::vector<vkfw_core::gfx::DescriptorSet>& convergenceImageDescriptorSets);
+        AOIntegrator(vkfw_core::gfx::LogicalDevice* device);
         ~AOIntegrator() override;
 
         void TraceRays(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, const glm::u32vec4& rtGroups) override;
+
+    private:
+        std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> GetShaders() const override;
     };
 }

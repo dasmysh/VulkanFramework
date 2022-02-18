@@ -15,17 +15,25 @@
 #include <gfx/vk/wrappers/DescriptorSet.h>
 
 namespace vkfw_app::gfx::rt {
-
-    RTIntegrator::RTIntegrator(std::string_view integratorName, std::string_view name, vkfw_core::gfx::LogicalDevice* device, const vkfw_core::gfx::PipelineLayout& rtPipelineLayout,
-        const vkfw_core::gfx::UniformBufferObject& cameraUBO, vkfw_core::gfx::DescriptorSet& rtResourcesDescriptorSet, std::vector<vkfw_core::gfx::DescriptorSet>& convergenceImageDescriptorSets)
-        : m_integratorName{integratorName}
-        , m_cameraUBO{cameraUBO}
-        , m_rtResourcesDescriptorSet{rtResourcesDescriptorSet}
-        , m_convergenceImageDescriptorSets{convergenceImageDescriptorSets}
-        , m_rtPipelineLayout{rtPipelineLayout}
-        , m_rtPipeline{device, name, {}}
+    RTIntegrator::RTIntegrator(std::string_view integratorName, std::string_view pipelineName, vkfw_core::gfx::LogicalDevice* device, std::uint32_t maxRecursionDepth)
+        : m_integratorName{integratorName}, m_maxRecursionDepth{maxRecursionDepth}, m_device{device}, m_rtPipeline{device, pipelineName, {}}
     {
     }
 
     RTIntegrator::~RTIntegrator() = default;
+
+    void RTIntegrator::InitializePipeline(const vkfw_core::gfx::PipelineLayout& pipelineLayout)
+    {
+        m_rtPipelineLayout = &pipelineLayout;
+        auto shaders = GetShaders();
+        GetPipeline().ResetShaders(std::move(shaders));
+        GetPipeline().CreatePipeline(m_maxRecursionDepth, GetPipelineLayout());
+    }
+
+    void RTIntegrator::InitializeMisc(const vkfw_core::gfx::UniformBufferObject& cameraUBO, vkfw_core::gfx::DescriptorSet& rtResourcesDescriptorSet, std::vector<vkfw_core::gfx::DescriptorSet>& convergenceImageDescriptorSets)
+    {
+        m_cameraUBO = &cameraUBO;
+        m_rtResourcesDescriptorSet = &rtResourcesDescriptorSet;
+        m_convergenceImageDescriptorSets = &convergenceImageDescriptorSets;
+    }
 }

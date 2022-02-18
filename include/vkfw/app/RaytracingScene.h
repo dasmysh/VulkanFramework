@@ -91,8 +91,7 @@ namespace vkfw_app::scene::rt {
         /** The descriptor set for the convergence image. */
         std::vector<vkfw_core::gfx::DescriptorSet> m_convergenceImageDescriptorSets;
 
-        std::vector<std::unique_ptr<gfx::rt::RTIntegrator>> m_integrators;
-        int m_integrator = 0;
+        std::unique_ptr<gfx::rt::RTIntegrator> m_integrator;
 
         /** Holds the texture sampler for the accumulated result. */
         vkfw_core::gfx::Sampler m_accumulatedResultSampler;
