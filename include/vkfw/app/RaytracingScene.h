@@ -11,106 +11,106 @@
 #include "app/Scene.h"
 
 #include <gfx/vk/UniformBufferObject.h>
+#include <gfx/vk/rt/AccelerationStructureGeometry.h>
+#include <gfx/vk/pipeline/DescriptorSetLayout.h>
+#include <gfx/vk/wrappers/PipelineLayout.h>
+#include <gfx/renderer/FullscreenQuad.h>
+#include "rt/rt_sample_host_interface.h"
+#include "rt/ao/ao_composite_shader_interface.h"
+#include "gfx/Materials.h"
 
 #include <glm/mat4x4.hpp>
 
 namespace vkfw_core::gfx {
     class Shader;
-    // class DeviceMemory;
     class DeviceTexture;
     class DeviceBuffer;
+    class AssImpScene;
+    class SceneMeshNode;
+    class SubMesh;
+}
+
+namespace vkfw_app::gfx::rt {
+    class RTIntegrator;
 }
 
 namespace vkfw_app::scene::rt {
-
-    struct CameraMatrixUBO
-    {
-        glm::mat4 m_viewInverse;
-        glm::mat4 m_projInverse;
-    };
 
     class RaytracingScene : public Scene
     {
     public:
         RaytracingScene(vkfw_core::gfx::LogicalDevice* t_device, vkfw_core::gfx::UserControlledCamera* t_camera,
                     std::size_t num_framebuffers);
+        ~RaytracingScene();
 
         void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) override;
-        void UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
-                                 vkfw_core::VKWindow* window) override;
-        void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) override;
+        void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) override;
+        void FrameMove(float time, float elapsed, bool cameraChanged, const vkfw_core::VKWindow* window) override;
         void RenderScene(const vkfw_core::VKWindow* window) override;
+        bool RenderGUI(const vkfw_core::VKWindow* window) override;
 
     private:
-        void InitializeRayTracingPipeline();
-
-        struct AccelerationStructure
-        {
-            vk::UniqueAccelerationStructureKHR as;
-            vk::UniqueDeviceMemory memory;
-            vk::DeviceAddress handle = 0;
-        };
-
         constexpr static std::uint32_t indexRaygen = 0;
         constexpr static std::uint32_t indexMiss = 1;
         constexpr static std::uint32_t indexClosestHit = 2;
         constexpr static std::uint32_t shaderGroupCount = 3;
 
         void InitializeScene();
-        void CreateBottomLevelAccelerationStructure();
-        void CreateTopLevelAccelerationStructure();
-        void InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window);
-
-        void InitializeShaderBindingTable();
         void InitializeDescriptorSets();
-        AccelerationStructure CreateAS(const vk::AccelerationStructureCreateInfoKHR& info);
-        std::unique_ptr<vkfw_core::gfx::DeviceBuffer> CreateASScratchBuffer(AccelerationStructure& as);
 
-        /** The raytracing properties for the selected device. */
-        vk::PhysicalDeviceRayTracingPropertiesKHR m_raytracingProperties;
-        /** The raytracing features of the selected device. */
-        vk::PhysicalDeviceRayTracingFeaturesKHR m_raytracingFeatures;
+        void InitializeStorageImage(const glm::uvec2& screenSize, const vkfw_core::VKWindow* window);
+        void FillDescriptorSets();
+
         /** Holds the memory for the world and camera UBOs. */
         vkfw_core::gfx::MemoryGroup m_memGroup;
         /** The uniform buffer object for the camera matrices. */
         vkfw_core::gfx::UniformBufferObject m_cameraUBO;
-        /** The uniform buffer object for the world matrices. */
-        vkfw_core::gfx::UniformBufferObject m_worldUBO;
-        /** The bottom level acceleration structure for the scene. */
-        AccelerationStructure m_BLAS;
-        /** The top level acceleration structure for the scene. */
-        AccelerationStructure m_TLAS;
+        /** The acceleration structure. */
+        vkfw_core::gfx::rt::AccelerationStructureGeometry m_asGeometry;
 
         /** The command pool for the transfer cmd buffers. */
-        vk::UniqueCommandPool m_transferCmdPool;
+        vkfw_core::gfx::CommandPool m_transferCmdPool;
         /** Holds the command buffers for transferring the uniform buffers. */
-        std::vector<vk::UniqueCommandBuffer> m_vkTransferCommandBuffers;
-
-        std::unique_ptr<vkfw_core::gfx::HostBuffer> m_shaderBindingTable;
+        std::vector<vkfw_core::gfx::CommandBuffer> m_transferCommandBuffers;
 
         /** The texture to store raytracing results. */
-        std::unique_ptr<vkfw_core::gfx::DeviceTexture> m_storageImage;
-        /** The image to store raytracing results. */
-        vk::UniqueImage m_vkStorageImage;
-        /** Memory for the storage image. */
-        // std::unique_ptr<vkfw_core::gfx::DeviceMemory> m_storageImageMemory;
-        /** The image view to store raytracing results. */
-        vk::UniqueImageView m_vkStorageImageView;
+        std::vector<vkfw_core::gfx::DeviceTexture> m_rayTracingConvergenceImages;
+        /** The sampler for material textures */
+        vkfw_core::gfx::Sampler m_sampler;
 
-        /** Holds the descriptor set layouts for the raytracing pipeline. */
-        vk::UniqueDescriptorSetLayout m_vkDescriptorSetLayout;
+        /** Holds the descriptor set layouts for the raytracing pipeline and geometry / material resources. */
+        vkfw_core::gfx::DescriptorSetLayout m_rtResourcesDescriptorSetLayout;
+        /** Holds the descriptor set layouts for the convergence image. */
+        vkfw_core::gfx::DescriptorSetLayout m_convergenceImageDescriptorSetLayout;
         /** Holds the pipeline layout for raytracing. */
-        vk::UniquePipelineLayout m_vkPipelineLayout;
+        vkfw_core::gfx::PipelineLayout m_rtPipelineLayout;
         /** The descriptor pool. */
-        vk::UniqueDescriptorPool m_vkDescriptorPool;
-        /** The descriptor set. */
-        vk::DescriptorSet m_vkDescriptorSet;
+        vkfw_core::gfx::DescriptorPool m_descriptorPool;
+        /** The descriptor set for the ray tracing resources. */
+        vkfw_core::gfx::DescriptorSet m_rtResourcesDescriptorSet;
+        /** The descriptor set for the convergence image. */
+        std::vector<vkfw_core::gfx::DescriptorSet> m_convergenceImageDescriptorSets;
 
-        /** Holds the shaders used for raytracing. */
-        std::vector<std::shared_ptr<vkfw_core::gfx::Shader>> m_shaders;
-        /** Holds the shader groups used for raytracing. */
-        std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_shaderGroups;
-        /** The raytracing pipeline. */
-        vk::UniquePipeline m_vkPipeline;
+        std::unique_ptr<gfx::rt::RTIntegrator> m_integrator;
+
+        /** Holds the texture sampler for the accumulated result. */
+        vkfw_core::gfx::Sampler m_accumulatedResultSampler;
+        /** Holds the descriptor set layout for the accumulated result image. */
+        vkfw_core::gfx::DescriptorSetLayout m_accumulatedResultImageDescriptorSetLayout;
+        /** The descriptor set for the accumulated image. */
+        std::vector<vkfw_core::gfx::DescriptorSet> m_accumulatedResultImageDescriptorSets;
+        /** Holds the pipeline layout for compositing. */
+        vkfw_core::gfx::PipelineLayout m_compositingPipelineLayout;
+        /** The fullscreen quad for compositing. */
+        vkfw_core::gfx::FullscreenQuad m_compositingFullscreenQuad;
+
+        vkfw_app::gfx::MirrorMaterialInfo m_triangleMaterial;
+        /** Holds the AssImp demo models. */
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
+        std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
+
+        CameraParameters m_cameraProperties;
+        std::size_t m_lastMoveFrame = static_cast<std::size_t>(-1);
+        bool m_guiChanged = true;
     };
 }

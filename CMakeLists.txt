@@ -25,14 +25,9 @@ if (ENABLE_PCH)
   target_precompile_headers(vkfw_options INTERFACE <vector> <string> <map> <utility>)
 endif()
 
-set(CONAN_EXTRA_REQUIRES "")
-set(CONAN_EXTRA_OPTIONS "")
-
-include(extern/vkfw_core/cmake/Conan.cmake)
-run_conan()
-
-# TODO: do we need this?
-#include(cmake/CompileSpirvShader.cmake)
+set(CONAN_DISABLE_CHECK_COMPILER ON)
+include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
+conan_basic_setup(TARGETS)
 
 
 get_filename_component(VKFW_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR} REALPATH)

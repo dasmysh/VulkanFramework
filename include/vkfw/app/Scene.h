@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan.hpp>
+#include <gfx/vk/wrappers/CommandBuffer.h>
 
 namespace vkfw_core {
     class VKWindow;
@@ -31,15 +32,20 @@ namespace vkfw_app::scene {
         virtual ~Scene() = default;
 
         virtual void CreatePipeline(const glm::uvec2& screenSize, vkfw_core::VKWindow* window) = 0;
-        virtual void UpdateCommandBuffer(const vk::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex,
-                                         vkfw_core::VKWindow* window) = 0;
-        virtual void FrameMove(float time, float elapsed, const vkfw_core::VKWindow* window) = 0;
+        virtual void RenderScene(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, vkfw_core::VKWindow* window) = 0;
+        virtual void FrameMove(float time, float elapsed, bool cameraChanged, const vkfw_core::VKWindow* window) = 0;
         virtual void RenderScene(const vkfw_core::VKWindow* window) = 0;
+        virtual bool RenderGUI(const vkfw_core::VKWindow* window);
 
     protected:
         vkfw_core::gfx::LogicalDevice* GetDevice() const { return m_device; }
         vkfw_core::gfx::UserControlledCamera* GetCamera() const { return m_camera; }
         std::size_t GetNumberOfFramebuffers() const { return m_num_framebuffers; }
+
+        // The queue indices for the current configuration.
+        constexpr static unsigned int GRAPHICS_QUEUE = 0;
+        constexpr static unsigned int TRANSFER_QUEUE = 0;
+
 
     private:
         /** The device to render the scene on. */

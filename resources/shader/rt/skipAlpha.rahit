@@ -1,0 +1,47 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "ray.glsl"
+#include "rt_sample_host_interface.h"
+
+hitAttributeEXT vec2 attribs;
+
+layout(scalar, binding = Vertices, set = RTResourcesSet) buffer VerticesBuffer { RayTracingVertex v[]; } vertices[];
+layout(binding = Indices, set = RTResourcesSet) buffer IndicesBuffer { uint i[]; } indices[];
+layout(scalar, binding = InstanceInfos, set = RTResourcesSet) buffer InstanceInfosBuffer { InstanceDesc i[]; } instances;
+layout(scalar, binding = PhongBumpMaterialInfos, set = RTResourcesSet) buffer PhongMaterialInfosBuffer { PhongBumpMaterial m[]; } phongMaterials;
+layout(scalar, binding = MirrorMaterialInfos, set = RTResourcesSet) buffer MirrorMaterialInfosBuffer { MirrorMaterial m[]; } mirrorMaterials;
+layout(binding = Textures, set = RTResourcesSet) uniform sampler2D textures[];
+
+void main()
+{
+    const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+
+    uint bufferIndex = instances.i[gl_InstanceID].bufferIndex;
+    uint indexOffset = instances.i[gl_InstanceID].indexOffset;
+
+    ivec3 ind = ivec3(indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 0],
+                      indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 1],
+                      indices[nonuniformEXT(bufferIndex)].i[indexOffset + 3 * gl_PrimitiveID + 2]);
+
+    RayTracingVertex v0 = vertices[nonuniformEXT(bufferIndex)].v[ind.x];
+    RayTracingVertex v1 = vertices[nonuniformEXT(bufferIndex)].v[ind.y];
+    RayTracingVertex v2 = vertices[nonuniformEXT(bufferIndex)].v[ind.z];
+
+    vec2 texCoords = v0.texCoords * barycentricCoords.x + v1.texCoords * barycentricCoords.y + v2.texCoords * barycentricCoords.z;
+
+    uint materialIndex = instances.i[gl_InstanceID].materialIndex;
+    uint materialType = instances.i[gl_InstanceID].materialType;
+    float alpha = 1.0f;
+    if (materialType == PhongBumpMaterialType) {
+        uint diffuseTextureIndex = phongMaterials.m[nonuniformEXT(materialIndex)].diffuseTextureIndex;
+        alpha = texture(textures[nonuniformEXT(diffuseTextureIndex)], texCoords).a;
+    }
+
+    if (alpha == 0.0f)
+    {
+        ignoreIntersectionEXT;
+    }
+}

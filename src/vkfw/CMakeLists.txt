@@ -38,7 +38,7 @@ if(NOT "${GEN_SHADER_FILES}" STREQUAL "")
 endif()
 set(COMPILED_SHADERS "")
 foreach(SHADER ${SHADER_FILES})
-    compile_spirv_shader("${SHADER}" "${PROJECT_SOURCE_DIR}/${VKFW_RESOURCE_DIR};${VKFWCORE_RESOURCE_BASE_PATH}")
+    compile_spirv_shader("${SHADER}" "${PROJECT_SOURCE_DIR}/${VKFW_RESOURCE_DIR}/shader;${VKFWCORE_RESOURCE_BASE_PATH}/shader")
     list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
 endforeach()
 if(NOT "${COMPILED_SHADERS}" STREQUAL "")
@@ -62,18 +62,14 @@ file(GLOB_RECURSE INCLUDE_FILES CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/include/${PROJECT_REL_PATH}/*.inl)
 source_group(TREE ${PROJECT_SOURCE_DIR}/include/${PROJECT_REL_PATH} FILES ${INCLUDE_FILES})
 
-
-# file(GLOB EXTERN_SOURCES CONFIGURE_DEPENDS
-#     ${CMAKE_BINARY_DIR}/extern/imgui/cpp/imgui_stdlib.cpp)
-# source_group("extern" FILES ${EXTERN_SOURCES})
-
-
 file(GLOB TOP_FILES CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/Readme.md
     ${PROJECT_SOURCE_DIR}/extern/vkfw_core/.clang-tidy
     ${PROJECT_SOURCE_DIR}/extern/vkfw_core/.clang-format
     ${CMAKE_BINARY_DIR}/glm.natvis
-    ${CMAKE_BINARY_DIR}/imgui.natvis)
+    ${CMAKE_BINARY_DIR}/imgui.natvis
+    ${CMAKE_BINARY_DIR}/imgui.gdb
+    ${CMAKE_BINARY_DIR}/imgui.natstepfilter)
 source_group(" " FILES ${TOP_FILES})
 
 
@@ -89,12 +85,8 @@ target_link_libraries(${APPLICATION_NAME} PRIVATE vk_framework_core)
 add_dependencies(${APPLICATION_NAME} compile_shaders)
 target_include_directories(${APPLICATION_NAME} PUBLIC
     ${PROJECT_SOURCE_DIR}/include/${PROJECT_REL_PATH}
+    ${PROJECT_SOURCE_DIR}/resources/shader
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/extern/imgui/cpp)
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${APPLICATION_NAME})
-# set_property(TARGET MyTarget PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(${APPLICATION_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-# set_target_properties(${APPLICATION_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
-#add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/${FWLIB_LIBNAME}/$<CONFIGURATION>/${FWLIB_LIBNAME}.pdb" ${CMAKE_BINARY_DIR})
-
