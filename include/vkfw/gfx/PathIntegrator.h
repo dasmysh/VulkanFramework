@@ -15,7 +15,7 @@ namespace vkfw_app::gfx::rt {
     class PathIntegrator : public RTIntegrator
     {
     public:
-        PathIntegrator(vkfw_core::gfx::LogicalDevice* device);
+        PathIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount);
         ~PathIntegrator() override;
 
         void TraceRays(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, const glm::u32vec4& rtGroups) override;

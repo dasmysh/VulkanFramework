@@ -1,8 +1,9 @@
+#ifndef SHADER_RT_RAYTRAVERSAL
+#define SHADER_RT_RAYTRAVERSAL
+
 #include "ray.glsl"
 
-layout(binding = AccelerationStructure, set = 0) uniform accelerationStructureEXT topLevelAS;
-
-bool findNextNonSpecularHit(inout vec3 origin, inout vec3 direction, out vec3 normal, float tmax)
+bool findNextNonSpecularHit(inout vec3 origin, inout vec3 direction, out vec3 normal, in accelerationStructureEXT topLevelAS, float tmax)
 {
     const uint maxSpecularDepth = 10;
     uint rayFlags = gl_RayFlagsNoneEXT;
@@ -30,3 +31,5 @@ bool findNextNonSpecularHit(inout vec3 origin, inout vec3 direction, out vec3 no
     normal = hitValue.attenuation;
     return true;
 }
+
+#endif // SHADER_RT_RAYTRAVERSAL

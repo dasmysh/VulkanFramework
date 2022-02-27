@@ -2,10 +2,11 @@
 #define SHADER_CORE_SAMPLING
 
 #include "random.glsl"
+#include "../rt/camera.glsl"
 
 const float M_PI = 3.14159265359;
 
-void sampleCameraRay(out vec3 origin, out vec3 direction, CameraParameters cam, inout uint rngState) {
+void sampleCameraRay(out vec3 origin, out vec3 direction, in CameraParameters cam, inout uint rngState) {
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(rand(rngState), rand(rngState));
     const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     vec2 d = inUV * 2.0 - 1.0;

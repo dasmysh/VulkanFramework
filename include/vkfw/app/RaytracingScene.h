@@ -63,8 +63,6 @@ namespace vkfw_app::scene::rt {
 
         /** Holds the memory for the world and camera UBOs. */
         vkfw_core::gfx::MemoryGroup m_memGroup;
-        /** The uniform buffer object for the camera matrices. */
-        vkfw_core::gfx::UniformBufferObject m_cameraUBO;
         /** The acceleration structure. */
         vkfw_core::gfx::rt::AccelerationStructureGeometry m_asGeometry;
 
@@ -109,8 +107,6 @@ namespace vkfw_app::scene::rt {
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_teapotMeshInfo;
         std::shared_ptr<vkfw_core::gfx::AssImpScene> m_sponzaMeshInfo;
 
-        CameraParameters m_cameraProperties;
-        std::size_t m_lastMoveFrame = static_cast<std::size_t>(-1);
         bool m_guiChanged = true;
     };
 }

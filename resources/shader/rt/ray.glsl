@@ -1,3 +1,5 @@
+#ifndef SHADER_RT_RAY
+#define SHADER_RT_RAY
 
 struct RayPayload {
     vec3 attenuation;
@@ -14,3 +16,5 @@ layout(location = 0) rayPayloadEXT RayPayload hitValue;
 #else
 layout(location = 0) rayPayloadInEXT RayPayload hitValue;
 #endif
+
+#endif // SHADER_RT_RAY

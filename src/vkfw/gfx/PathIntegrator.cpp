@@ -17,8 +17,8 @@
 
 namespace vkfw_app::gfx::rt {
 
-    PathIntegrator::PathIntegrator(vkfw_core::gfx::LogicalDevice* device)
-        : RTIntegrator{"Path Tracing Integrator", "PathTracingPipeline", device, 1}
+    PathIntegrator::PathIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount)
+        : RTIntegrator{"Path Tracing Integrator", "PathTracingPipeline", device, camera, 1, framebufferCount}
     {
         materialSBTMapping().resize(static_cast<std::size_t>(materials::MaterialIdentifierApp::TotalMaterialCount), 0);
         materialSBTMapping()[static_cast<std::size_t>(materials::MaterialIdentifierApp::MirrorMaterialType)] = 1;

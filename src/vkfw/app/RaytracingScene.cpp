@@ -17,8 +17,6 @@
 #include <gfx/vk/QueuedDeviceTransfer.h>
 #include <gfx/vk/memory/DeviceMemory.h>
 #include <gfx/camera/UserControlledCamera.h>
-// #include <gfx/VertexFormats.h>
-#include <glm/gtc/matrix_inverse.hpp>
 #include "imgui.h"
 #include "gfx/AOIntegrator.h"
 #include "gfx/PathIntegrator.h"
@@ -32,7 +30,6 @@ namespace vkfw_app::scene::rt {
                                      std::size_t t_num_framebuffers)
         : Scene(t_device, t_camera, t_num_framebuffers)
         , m_memGroup{GetDevice(), "RTSceneMemoryGroup", vk::MemoryPropertyFlags()}
-        , m_cameraUBO{vkfw_core::gfx::UniformBufferObject::Create<CameraPropertiesBuffer>(GetDevice(), GetNumberOfFramebuffers())}
         , m_asGeometry{GetDevice(), "RTSceneASGeometry", std::vector<std::uint32_t>{{0, 1}}}
         , m_sampler{GetDevice()->GetHandle(), "RTSceneSampler", vk::UniqueSampler{}}
         , m_rtResourcesDescriptorSetLayout{"RTSceneResourcesDescriptorSetLayout"}
@@ -48,7 +45,7 @@ namespace vkfw_app::scene::rt {
                                                 vk::SamplerAddressMode::eRepeat};
         m_sampler.SetHandle(GetDevice()->GetHandle(), GetDevice()->GetHandle().createSamplerUnique(samplerCreateInfo));
 
-        m_integrator = std::make_unique<gfx::rt::AOIntegrator>(GetDevice());
+        m_integrator = std::make_unique<gfx::rt::AOIntegrator>(GetDevice(), GetCamera(), GetNumberOfFramebuffers());
 
         m_triangleMaterial.m_materialName = "RT_DemoScene_TriangleMaterial";
         m_triangleMaterial.m_Kr = glm::vec3{0.988f, 0.059f, 0.753};
@@ -61,14 +58,6 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::InitializeScene()
     {
         auto numUBOBuffers = GetNumberOfFramebuffers();
-
-        m_cameraProperties.viewInverse = glm::inverse(GetCamera()->GetViewMatrix());
-        m_cameraProperties.projInverse = glm::inverse(GetCamera()->GetProjMatrix());
-        m_cameraProperties.frameId = 0;
-        m_cameraProperties.cosineSampled = 0;
-        m_cameraProperties.cameraMovedThisFrame = 1;
-        m_cameraProperties.maxRange = 10.0f;
-        auto uboSize = m_cameraUBO.GetCompleteSize();
 
         // Setup vertices for a single triangle
         std::vector<RayTracingVertex> vertices = {{glm::vec3{1.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}, glm::vec2{0.0f}},
@@ -84,11 +73,8 @@ namespace vkfw_app::scene::rt {
         glm::mat4 worldMatrixSponza = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.015f));
 
         auto indexBufferOffset = GetDevice()->CalculateStorageBufferAlignment(vkfw_core::byteSizeOf(vertices));
-        // this is not documented but it seems this memory needs the same alignment as uniform buffers.
-        // auto transformBufferMeshOffset = GetDevice()->CalculateUniformBufferAlignment(indexBufferMeshOffset + vkfw_core::byteSizeOf(indicesMesh));
-        auto uniformDataOffset =
-            GetDevice()->CalculateUniformBufferAlignment(indexBufferOffset + vkfw_core::byteSizeOf(indicesRT));
-        auto completeBufferSize = uniformDataOffset + uboSize;
+        auto uboOffset = indexBufferOffset + vkfw_core::byteSizeOf(indicesRT);
+        auto completeBufferSize = m_integrator->CalculateUniformBuffersSize(uboOffset);
         auto completeBufferIdx = m_memGroup.AddBufferToGroup("RTSceneCompleteBuffer",
             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer
                 | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eUniformBuffer
@@ -98,7 +84,7 @@ namespace vkfw_app::scene::rt {
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, 0, vertices);
         m_memGroup.AddDataToBufferInGroup(completeBufferIdx, indexBufferOffset, indicesRT);
 
-        m_cameraUBO.AddUBOToBuffer(&m_memGroup, completeBufferIdx, uniformDataOffset, m_cameraProperties);
+        m_integrator->AddUBOsToMemoryGroup(m_memGroup, completeBufferIdx, indexBufferOffset + vkfw_core::byteSizeOf(indicesRT));
 
         vkfw_core::gfx::QueuedDeviceTransfer transfer{GetDevice(), GetDevice()->GetQueue(TRANSFER_QUEUE, 0)};
         m_memGroup.FinalizeDeviceGroup();
@@ -111,11 +97,11 @@ namespace vkfw_app::scene::rt {
                                                              static_cast<std::uint32_t>(numUBOBuffers)};
             m_transferCommandBuffers =
                 vkfw_core::gfx::CommandBuffer::Initialize(GetDevice(), "RTSceneTransferCommandBuffer", m_transferCmdPool.GetQueueFamily(), GetDevice()->GetHandle().allocateCommandBuffersUnique(cmdBufferallocInfo));
-            for (auto i = 0U; i < numUBOBuffers; ++i) {
+            for (auto i = 0ul; i < numUBOBuffers; ++i) {
                 vk::CommandBufferBeginInfo beginInfo{vk::CommandBufferUsageFlagBits::eSimultaneousUse};
                 m_transferCommandBuffers[i].Begin(beginInfo);
 
-                m_cameraUBO.FillUploadCmdBuffer<CameraPropertiesBuffer>(m_transferCommandBuffers[i], i);
+                m_integrator->FillUBOUploadCmdBuffer(m_transferCommandBuffers[i], i);
 
                 m_transferCommandBuffers[i].End();
             }
@@ -161,7 +147,6 @@ namespace vkfw_app::scene::rt {
 
     void RaytracingScene::InitializeDescriptorSets()
     {
-        using UniformBufferObject = vkfw_core::gfx::UniformBufferObject;
         using Texture = vkfw_core::gfx::Texture;
         using ResBindings = ResSetBindings;
         using ConvBindings = ConvSetBindings;
@@ -173,7 +158,8 @@ namespace vkfw_app::scene::rt {
 
         m_rtResourcesDescriptorSetLayout.AddBinding(static_cast<uint32_t>(ResBindings::PhongBumpMaterialInfos), vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR);
         m_rtResourcesDescriptorSetLayout.AddBinding(static_cast<uint32_t>(ResBindings::MirrorMaterialInfos), vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR);
-        UniformBufferObject::AddDescriptorLayoutBinding(m_rtResourcesDescriptorSetLayout, vk::ShaderStageFlagBits::eRaygenKHR, true, static_cast<uint32_t>(ResBindings::CameraProperties));
+
+        m_integrator->AddDescriptorLayoutBinding(m_rtResourcesDescriptorSetLayout);
 
         Texture::AddDescriptorLayoutBinding(m_convergenceImageDescriptorSetLayout, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR, static_cast<uint32_t>(ConvBindings::ResultImage));
         Texture::AddDescriptorLayoutBinding(m_accumulatedResultImageDescriptorSetLayout, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, static_cast<uint32_t>(CompositeConvSetBindings::AccumulatedImage));
@@ -231,7 +217,6 @@ namespace vkfw_app::scene::rt {
         FillDescriptorSets();
 
         m_integrator->InitializePipeline(m_rtPipelineLayout);
-        m_integrator->InitializeMisc(m_cameraUBO, m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets);
 
         m_compositingFullscreenQuad.CreatePipeline(GetDevice(), screenSize, window->GetRenderPass(), 0, m_compositingPipelineLayout);
     }
@@ -270,7 +255,6 @@ namespace vkfw_app::scene::rt {
         using ConvBindings = ConvSetBindings;
 
         std::array<const vkfw_core::gfx::rt::AccelerationStructureGeometry*, 1> accelerationStructure;
-        std::array<vkfw_core::gfx::BufferRange, 1> cameraBufferRange;
         std::vector<vkfw_core::gfx::BufferRange> vboBufferRanges;
         std::vector<vkfw_core::gfx::BufferRange> iboBufferRanges;
         std::array<vkfw_core::gfx::BufferRange, 1> instanceBufferRange;
@@ -283,8 +267,7 @@ namespace vkfw_app::scene::rt {
         accelerationStructure[0] = &m_asGeometry;
         m_rtResourcesDescriptorSet.WriteAccelerationStructureDescriptor(static_cast<uint32_t>(ResBindings::AccelerationStructure), 0, accelerationStructure);
 
-        m_cameraUBO.FillBufferRange(cameraBufferRange[0]);
-        m_rtResourcesDescriptorSet.WriteBufferDescriptor(static_cast<uint32_t>(ResBindings::CameraProperties), 0, cameraBufferRange, vk::AccessFlagBits2KHR::eShaderRead);
+        m_integrator->FillDescriptorSets(m_rtResourcesDescriptorSet, m_convergenceImageDescriptorSets);
 
         m_asGeometry.FillGeometryInfo(vboBufferRanges, iboBufferRanges, instanceBufferRange[0]);
         m_asGeometry.FillMaterialInfo<vkfw_app::gfx::MirrorMaterialInfo>(mirrorMaterialBufferRange[0]);
@@ -329,25 +312,12 @@ namespace vkfw_app::scene::rt {
     void RaytracingScene::FrameMove(float, float, bool cameraChanged, const vkfw_core::VKWindow* window)
     {
         static bool firstFrame = true;
-        m_cameraProperties.viewInverse = glm::inverse(GetCamera()->GetViewMatrix());
-        m_cameraProperties.projInverse = glm::inverse(GetCamera()->GetProjMatrix());
-
         auto uboIndex = window->GetCurrentlyRenderedImageIndex();
-
-        if (m_lastMoveFrame == uboIndex) {
-            m_lastMoveFrame = static_cast<std::size_t>(-1);
-            m_cameraProperties.cameraMovedThisFrame = 0;
-        }
-
-        if (window->GetCurrentlyRenderedImageIndex() == 0) { m_cameraProperties.frameId += 1; }
+        m_integrator->FrameMove(uboIndex, cameraChanged || m_guiChanged);
 
         if (cameraChanged || m_guiChanged) {
-            m_cameraProperties.cameraMovedThisFrame = 1;
             m_guiChanged = false;
-            m_lastMoveFrame = uboIndex;
         }
-
-        m_cameraUBO.UpdateInstanceData(uboIndex, m_cameraProperties);
 
         const auto& transferQueue = GetDevice()->GetQueue(TRANSFER_QUEUE, 0);
         {
@@ -372,17 +342,7 @@ namespace vkfw_app::scene::rt {
         ImGui::SetNextWindowPos(ImVec2(5, 100), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(220, 190), ImGuiCond_Always);
         if (ImGui::Begin("Scene Control")) {
-
-            bool cosSample = m_cameraProperties.cosineSampled == 1;
-            if (ImGui::Checkbox("Samples Cosine Weigthed", &cosSample)) {
-                // add camera changed here.
-                m_guiChanged = true;
-            }
-            m_cameraProperties.cosineSampled = cosSample ? 1 : 0;
-            if (ImGui::SliderFloat("Max. Range", &m_cameraProperties.maxRange, 0.1f, 10000.0f)) {
-                // add camera changed here.
-                m_guiChanged = true;
-            }
+            m_guiChanged = m_integrator->RenderGUI();
         }
         ImGui::End();
 

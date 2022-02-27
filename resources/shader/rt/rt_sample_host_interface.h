@@ -3,6 +3,8 @@
 
 #include "rt/ray_tracing_host_interface.h"
 #include "materials/material_sample_host_interface.h"
+#include "camera.glsl"
+#include "frame.glsl"
 
 BEGIN_INTERFACE(vkfw_app::scene::rt)
 
@@ -20,7 +22,9 @@ BEGIN_CONSTANTS(ResSetBindings)
     PhongBumpMaterialInfos = 5,
     MirrorMaterialInfos = 6,
     Textures = 7,
-    ResSetBindingsSize = 8
+    FrameProperties = 8,
+    AlgorithmProperties = 9,
+    ResSetBindingsSize = 10
 END_CONSTANTS()
 
 BEGIN_CONSTANTS(ConvSetBindings)
@@ -43,18 +47,12 @@ struct RayTracingVertex
 #endif
 };
 
-struct CameraParameters
-{
-    mat4 viewInverse;
-    mat4 projInverse;
-    uint frameId;
-    uint cameraMovedThisFrame;
-    uint cosineSampled;
-    float maxRange;
-};
-
 BEGIN_UNIFORM_BLOCK(set = RTResourcesSet, binding = CameraProperties, CameraPropertiesBuffer)
     CameraParameters cam;
+END_UNIFORM_BLOCK()
+
+BEGIN_UNIFORM_BLOCK(set = RTResourcesSet, binding = FrameProperties, FramePropertiesBuffer)
+    FrameParameters frame;
 END_UNIFORM_BLOCK()
 
 END_INTERFACE()

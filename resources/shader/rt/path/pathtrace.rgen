@@ -7,6 +7,7 @@
 #include "../../core/sampling.glsl"
 #include "../rayTraversal.glsl"
 
+layout(binding = AccelerationStructure, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = ResultImage, set = ConvergenceSet, rgba8) uniform image2D image;
 
 const float aoRayCount = 16;
@@ -26,11 +27,9 @@ void compute_default_basis(const vec3 normal, out vec3 tangent, out vec3 binorma
   binormal = cross(normal, tangent);
 }
 
-
 void main()
 {
-    const bool cosSample = cam.cosineSampled == 1;
-    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, cam.frameId);
+    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, frame.frameId);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
     const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     vec2 d = inUV * 2.0 - 1.0;
@@ -42,11 +41,11 @@ void main()
     float tmax = 10000.0;
     vec3 normal;
 
-    if (cam.cameraMovedThisFrame != 1) {
+    if (frame.cameraMovedThisFrame != 1) {
         resultColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
     }
 
-    bool hit = findNextNonSpecularHit(origin.xyz, direction.xyz, normal, tmax);
+    bool hit = findNextNonSpecularHit(origin.xyz, direction.xyz, normal, topLevelAS, tmax);
     if (!hit) {
         resultColor = vec4(normal, 1.0f);
     }
@@ -60,19 +59,11 @@ void main()
         for (int i = 0; i < int(aoRayCount); ++i) {
             vec3 sample_direction;
             float pdf;
-            if (!cosSample)
-            {
-                sample_direction = sampleUniformHemisphere(n, s, t, rngState);
-                pdf = uniformHemispherePDF();
-            }
-            else
-            {
-                sample_direction = sampleCosineHemisphere(n, s, t, rngState);
-                pdf = cosineHemispherePDF(abs(sample_direction.z));
-            }
+            sample_direction = sampleUniformHemisphere(n, s, t, rngState);
+            pdf = uniformHemispherePDF();
 
             vec3 hitNormal, rayOrigin = p, rayDirection = sample_direction;
-            if (!findNextNonSpecularHit(rayOrigin, rayDirection, hitNormal, cam.maxRange)) {
+            if (!findNextNonSpecularHit(rayOrigin, rayDirection, hitNormal, topLevelAS, 10.0)) {
                 resultColor += vec4(vec3(dot(sample_direction, n) / (M_PI * pdf)), 1.0f);
             }
             else
