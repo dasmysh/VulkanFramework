@@ -1,0 +1,65 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#define RAYGEN
+
+#include "../../core/random.glsl"
+#include "../../core/sampling.glsl"
+#include "../rayTraversal.glsl"
+#include "../utils.glsl"
+#include "../lights.glsl"
+#include "path_host_interface.h"
+
+layout(binding = AccelerationStructure, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = ResultImage, set = ConvergenceSet, rgba32f) uniform image2D image;
+
+void main()
+{
+    vec4 resultColor = vec4(0.0f);
+    if (frame.cameraMovedThisFrame != 1) {
+        resultColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+    }
+
+    uint rngState = initRNG(gl_LaunchIDEXT.xy, gl_LaunchSizeEXT.xy, frame.frameId);
+
+    vec3 origin, direction;
+    sampleCameraRay(origin, direction, cam, rngState);
+
+    float tmax = 10000.0;
+
+    TraceResult isect;
+    isect.origin = origin;
+    isect.direction = direction;
+    isect.attenuation = vec3(1.0f);
+    isect.L = vec3(0.0f);
+    isect.specularBounce = false;
+    isect.done = 0;
+
+    for (int i = 0; i < path.maxDepth; ++i)
+    {
+        bool hit = findNextHit(origin, direction, isect, topLevelAS, tmax);
+        if (!hit) {
+            // just add attenuation (i.e. background color) from miss shader
+            L += isect.attenuation * isect.L;
+            break;
+        }
+
+        // next event estimation
+        L += isect.attenuation * next_event_estimation(origin, topLevelAS);
+
+        // russian roulette
+        float rr = max(attenuation.r, max(attenuation.g, attenuation.b));
+        if (rr < path.rrThreshold && i > 3)
+        {
+            float q = max(0.05f, 1.0f - rr);
+            if (rand(rngState) < q) {
+                break;
+            }
+
+            attenuation /= 1.0f - q;
+            // DCHECK(!std::isinf(beta.y()));
+        }
+    }
+
+    resultColor += vec4(L, 1.0f);
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), resultColor);
+}

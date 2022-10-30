@@ -228,7 +228,7 @@ namespace vkfw_app::scene::simple {
             barrier.Record(cmdBuffer);
             auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
             if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
-                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", vk::to_string(r));
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");
             }
         }

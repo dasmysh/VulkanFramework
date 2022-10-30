@@ -3,7 +3,7 @@
  * @author Sebastian Maisch <sebastian.maisch@googlemail.com>
  * @date   2021.21.05
  *
- * @brief  Class for the ambient path tracing integrator.
+ * @brief  Class for the ambient path tracing integrator with shadow rays in closest hit shaders.
  */
 
 #pragma once
@@ -13,11 +13,11 @@
 
 namespace vkfw_app::gfx::rt {
 
-    class PathIntegrator : public RTIntegrator
+    class PathRecursiveIntegrator : public RTIntegrator
     {
     public:
-        PathIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount);
-        ~PathIntegrator() override;
+        PathRecursiveIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount);
+        ~PathRecursiveIntegrator() override;
 
         [[nodiscard]] std::size_t CalculateUniformBuffersSize(std::size_t offset) override;
         std::size_t AddUBOsToMemoryGroup(vkfw_core::gfx::MemoryGroup& memGroup, unsigned int completeBufferIndex, std::size_t offset) override;

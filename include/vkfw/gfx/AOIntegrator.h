@@ -34,10 +34,9 @@ namespace vkfw_app::gfx::rt {
     private:
         [[nodiscard]] std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> GetShaders() const override;
 
-        /** The uniform buffer object for the frame parameters. */
+        /** The uniform buffer object for the algorithm parameters. */
         vkfw_core::gfx::UniformBufferObject m_algorithmUBO;
-
-        /** Camera parameters for shader upload. */
+        /** Algorithm parameters for shader upload. */
         scene::rt::ao::AlgorithmParameters m_algorithmProperties;
     };
 }

@@ -3,10 +3,10 @@
  * @author Sebastian Maisch <sebastian.maisch@googlemail.com>
  * @date   2021.12.05
  *
- * @brief  Implementation the path tracing integrator.
+ * @brief  Implementation the path tracing integrator with shadow rays in closest hit shaders.
  */
 
-#include "gfx/PathIntegrator.h"
+#include "gfx/PathRecursiveIntegrator.h"
 #include "main.h"
 #include <core/resources/ShaderManager.h>
 #include <gfx/vk/LogicalDevice.h>
@@ -17,17 +17,17 @@
 
 namespace vkfw_app::gfx::rt {
 
-    PathIntegrator::PathIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount)
-        : RTIntegrator{"Path Tracing Integrator", "PathTracingPipeline", device, camera, 1, framebufferCount}
+    PathRecursiveIntegrator::PathRecursiveIntegrator(vkfw_core::gfx::LogicalDevice* device, vkfw_core::gfx::UserControlledCamera* camera, std::size_t framebufferCount)
+        : RTIntegrator{"Path Tracing Integrator", "PathTracingPipeline", device, camera, 2, framebufferCount}
         , m_algorithmUBO{device, sizeof(scene::rt::path::AlgorithmParameters), 1}
     {
         materialSBTMapping().resize(static_cast<std::size_t>(materials::MaterialIdentifierApp::TotalMaterialCount), 0);
         materialSBTMapping()[static_cast<std::size_t>(materials::MaterialIdentifierApp::MirrorMaterialType)] = 1;
     }
 
-    PathIntegrator::~PathIntegrator() = default;
+    PathRecursiveIntegrator::~PathRecursiveIntegrator() = default;
 
-    std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> PathIntegrator::GetShaders() const
+    std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> PathRecursiveIntegrator::GetShaders() const
     {
         // TODO: use correct shaders.
         std::vector<vkfw_core::gfx::RayTracingPipeline::RTShaderInfo> shaders;
@@ -41,7 +41,7 @@ namespace vkfw_app::gfx::rt {
         return shaders;
     }
 
-    void PathIntegrator::TraceRays(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, const glm::u32vec4& rtGroups)
+    void PathRecursiveIntegrator::TraceRays(vkfw_core::gfx::CommandBuffer& cmdBuffer, std::size_t cmdBufferIndex, const glm::u32vec4& rtGroups)
     {
         auto& sbtDeviceAddressRegions = GetPipeline().GetSBTDeviceAddresses();
 
