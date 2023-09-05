@@ -1,10 +1,12 @@
 # VulkanFramework
 Basic application for the vulkan framework library.
+- Clone repository with submodules recursive:
 
-- From the build folder run:
+  ```git clone --recurse-submodules -j8 https://github.com/dasmysh/VulkanFramework.git ```
+  ```cd VulkanFramework```
 
-  ```conan install --build=missing --install-folder=./vkfw_core ../extern/vkfw_core/```
+- Start CMake from this folder with:
 
-  ```conan install --build=missing --install-folder=./vkfw_core -s build_type=Debug ../extern/vkfw_core/```
+  ```cmake -S . --preset=default```
 
-  This does not generate debug symbols for Visual Studio and some warnings will be generated. To avoid use the `--build` parameter without `=missing`.
+- CMake GUI can be used after the first configure step is done with the correct toolchain file.
