@@ -149,11 +149,11 @@ namespace vkfw_app::scene::rt {
             // if we would fill the command buffer each frame (and therefore create barriers containing the actual image layouts) this would not be neccessary.
             auto cmdBuffer = vkfw_core::gfx::CommandBuffer::beginSingleTimeSubmit(GetDevice(), "TransferImageLayoutsInitialCommandBuffer", "TransferImageLayoutsInitial", GetDevice()->GetCommandPool(GRAPHICS_QUEUE));
             vkfw_core::gfx::PipelineBarrier barrier{GetDevice()};
-            m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eRayTracingShader, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
+            m_asGeometry.CreateResourceUseBarriers(vk::AccessFlagBits2KHR::eShaderRead, vk::PipelineStageFlagBits2KHR::eRayTracingShaderKHR, vk::ImageLayout::eShaderReadOnlyOptimal, barrier);
             barrier.Record(cmdBuffer);
             auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
             if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
-                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", vk::to_string(r));
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");
             }
         }
@@ -258,7 +258,7 @@ namespace vkfw_app::scene::rt {
             barrier.Record(cmdBuffer);
             auto fence = vkfw_core::gfx::CommandBuffer::endSingleTimeSubmit(GetDevice()->GetQueue(GRAPHICS_QUEUE, 0), cmdBuffer, {}, {});
             if (auto r = GetDevice()->GetHandle().waitForFences({fence->GetHandle()}, VK_TRUE, vkfw_core::defaultFenceTimeout); r != vk::Result::eSuccess) {
-                spdlog::error("Could not wait for fence while transitioning layout: {}.", r);
+                spdlog::error("Could not wait for fence while transitioning layout: {}.", vk::to_string(r));
                 throw std::runtime_error("Could not wait for fence while transitioning layout.");
             }
         }
