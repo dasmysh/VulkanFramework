@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.27.1)
 
 project(VKFW CXX)
 
@@ -25,11 +25,6 @@ if (ENABLE_PCH)
   target_precompile_headers(vkfw_options INTERFACE <vector> <string> <map> <utility>)
 endif()
 
-set(CONAN_DISABLE_CHECK_COMPILER ON)
-include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
-conan_basic_setup(TARGETS)
-
-
 get_filename_component(VKFW_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR} REALPATH)
 set(VKFW_WINDOW_WIDTH "1920" CACHE STRING "Application main window width.")
 set(VKFW_WINDOW_HEIGHT "1080" CACHE STRING "Application main window height.")
@@ -43,6 +38,8 @@ add_subdirectory(extern/vkfw_core)
 if(NOT EXISTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}Config.xml")
    configure_file("${CMAKE_SOURCE_DIR}/${PROJECT_NAME}Config.xml" "${PROJECT_NAME}Config.xml")
 endif()
+
+include(extern/vkfw_core/cmake/ResourceFileList.cmake)
 
 if(ENABLE_TESTING)
   enable_testing()

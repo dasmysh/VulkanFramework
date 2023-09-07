@@ -186,6 +186,7 @@ resources/**/*.gen.*
 resources/**/*.myshbin
 resources/**/*.vkbin
 resources/**/*.spv
+resources/**/*.dep
 
 # include all resource files
 !**/resources/**/*.obj

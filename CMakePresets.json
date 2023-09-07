@@ -1,0 +1,33 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 27,
+    "patch": 1
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Config",
+      "description": "Default build using Visual Studio generator",
+      "generator": "Visual Studio 17 2022",
+      "toolchainFile": "${sourceDir}/extern/vkfw_core/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/extern/vkfw_core",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    }
+  ]
+}
