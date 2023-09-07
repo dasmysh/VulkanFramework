@@ -39,6 +39,8 @@ if(NOT EXISTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}Config.xml")
    configure_file("${CMAKE_SOURCE_DIR}/${PROJECT_NAME}Config.xml" "${PROJECT_NAME}Config.xml")
 endif()
 
+include(extern/vkfw_core/cmake/ResourceFileList.cmake)
+
 if(ENABLE_TESTING)
   enable_testing()
   message(
