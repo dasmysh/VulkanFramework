@@ -29,7 +29,7 @@ struct MaterialCallableParameters
 #ifdef DISPATCH_MATERIAL
 layout(location = 0) callableDataEXT MaterialCallableParameters materialCallableParams;
 #else
-layout(location = 0) callableDataInEXT MaterialCallableParameters materialCallableParams;
+// layout(location = 0) callableDataInEXT MaterialCallableParameters materialCallableParams;
 #endif
 
 // end material callable interface
@@ -69,10 +69,12 @@ bool isSpecular()
 
 vec3 material_brdf()
 {
+    return vec3(0);
 }
 
 float material_pdf()
 {
+    return 0;
 }
 // end mirror
 
